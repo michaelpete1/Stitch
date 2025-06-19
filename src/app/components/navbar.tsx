@@ -93,14 +93,11 @@ export default function Navbar() {
         <span className={`block w-6 h-0.5 bg-[#101418] transition-all duration-300 ${open ? "-rotate-45 -translate-y-2" : ""}`}></span>
       </button>
 
-      {/* Overlay for mobile menu */}
       <div
         className={`fixed inset-0 bg-black/40 z-30 transition-opacity duration-300 md:hidden ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
         onClick={() => setOpen(false)}
         aria-hidden={!open}
       />
-
-      {/* Sidebar */}
       <aside
         className={`fixed top-0 left-0 z-50 h-screen w-64 bg-white border-r flex flex-col py-4 px-4 shadow-lg
         transition-transform duration-300 md:static md:translate-x-0 md:shadow-none
