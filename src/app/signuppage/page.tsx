@@ -1,181 +1,199 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import Image from 'next/image';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
 
-export default function ProfilePage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [nameInput, setNameInput] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+const inputClasses =
+  'w-full px-4 py-3 border border-[#d4dbe2] rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-300 focus:ring-opacity-10 transition-all bg-white font-sora';
 
-  useEffect(() => {
-    const getUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user);
-      setNameInput(
-        data.user?.user_metadata?.name ||
-        data.user?.user_metadata?.full_name ||
-        data.user?.email?.split('@')[0] ||
-        ''
-      );
-    };
-    getUser();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setNameInput(
-        session?.user?.user_metadata?.name ||
-        session?.user?.user_metadata?.full_name ||
-        session?.user?.email?.split('@')[0] ||
-        ''
-      );
-    });
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  const displayName =
-    user?.user_metadata?.name ||
-    user?.user_metadata?.full_name ||
-    user?.email?.split('@')[0] ||
-    'User';
-
-  const bio =
-    user?.user_metadata?.bio ||
-    'Student';
-
-  const avatarUrl =
-    user?.user_metadata?.avatar_url ||
-    user?.user_metadata?.picture ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=667eea&color=fff&size=128`;
-
-  const email = user?.email || '';
-
-  // Edit name handler
-  async function handleSaveName(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setMessage(null);
-
-    // Update user_metadata.name
-    const { error } = await supabase.auth.updateUser({
-      data: { ...user?.user_metadata, name: nameInput }
-    });
-
-    if (error) {
-      setMessage({ type: 'error', text: 'Failed to update name: ' + error.message });
-    } else {
-      setMessage({ type: 'success', text: 'Name updated!' });
-      // Refetch user to update UI
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user);
-      setEditing(false);
-    }
-    setSaving(false);
-  }
-
+function PasswordInput({ id, placeholder, show, setShow, value, onChange }: {
+  id: string;
+  placeholder: string;
+  show: boolean;
+  setShow: React.Dispatch<React.SetStateAction<boolean>>;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-start pt-16 bg-gradient-to-br from-indigo-100 via-blue-100 to-purple-100">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 mt-16 animate-fade-in-down">
-        <div className="flex flex-col items-center">
-          <div className="relative mb-4">
-            <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-28 h-2 bg-indigo-200 blur-2xl opacity-60 rounded-full z-0"></span>
-            <Image
-              src={avatarUrl}
-              alt={displayName + " avatar"}
-              width={96}
-              height={96}
-              className="w-24 h-24 rounded-full border-4 border-[#dce7f3] object-cover shadow-lg relative z-10"
-              priority
-              unoptimized // For external URLs
-            />
-          </div>
-          {editing ? (
-            <form onSubmit={handleSaveName} className="flex flex-col items-center w-full animate-fade-in-up animate-delay-100">
-              <input
-                className="text-2xl font-extrabold text-[#101418] tracking-tight mb-1 border rounded-lg px-3 py-2 w-full text-center"
-                value={nameInput}
-                onChange={e => setNameInput(e.target.value)}
-                disabled={saving}
-                maxLength={64}
-                required
-                aria-label="Name"
-              />
-              <div className="flex gap-2 w-full mt-2">
-                <button
-                  className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-blue-400 hover:from-indigo-600 hover:to-blue-500 text-white font-semibold shadow-md transition-all duration-300"
-                  type="submit"
-                  disabled={saving}
-                >
-                  {saving ? 'Saving...' : 'Save'}
-                </button>
-                <button
-                  className="flex-1 px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-[#101418] font-semibold shadow transition-colors"
-                  type="button"
-                  disabled={saving}
-                  onClick={() => { setEditing(false); setNameInput(displayName); }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : (
-            <>
-              <h2 className="text-2xl font-extrabold text-[#101418] tracking-tight mb-1 animate-fade-in-up animate-delay-100">{displayName}</h2>
-              <button
-                className="px-3 py-1 rounded text-xs bg-[#eaedf1] hover:bg-[#dce7f3] text-[#101418] shadow animate-fade-in-up animate-delay-200"
-                type="button"
-                onClick={() => setEditing(true)}
-              >
-                Edit Name
-              </button>
-            </>
-          )}
-          <p className="text-[#667eea] text-sm mb-2 animate-fade-in-up animate-delay-200">{email}</p>
-          <p className="text-[#101418] text-center mb-6 animate-fade-in-up animate-delay-300">{bio}</p>
-          {message && (
-            <div
-              className={`mb-2 text-center w-full text-sm ${message.type === "error" ? "text-red-500" : "text-green-600"}`}
-            >
-              {message.text}
+    <div className="relative">
+      <input
+        type={show ? 'text' : 'password'}
+        id={id}
+        className={inputClasses + ' pr-12'}
+        placeholder={placeholder}
+        required
+        title={placeholder}
+        value={value}
+        onChange={onChange}
+      />
+      <button
+        type="button"
+        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#5c728a] hover:text-[#101418] transition-colors"
+        onClick={() => setShow(v => !v)}
+        title={show ? 'Hide password' : 'Show password'}
+      >
+        {show ? '🙈' : '👁️'}
+      </button>
+    </div>
+  );
+}
+
+const features = ['Organize course materials', 'Track progress', 'Access anywhere'];
+
+function BrandingSection() {
+  return (
+    <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-500 via-purple-600 to-blue-400 items-center justify-center relative overflow-hidden">
+      <div className="relative z-10 flex flex-col justify-center items-center text-white p-12">
+        <div className="max-w-md text-center animate-fade-in-down">
+          <div className="mb-8">
+            <div className="w-16 h-16 bg-[#ffe5db] rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg animate-pop-in">
+              {/* icon */}
             </div>
-          )}
-          <Link href="/" className="mt-8 w-full flex items-center justify-center animate-fade-in-up animate-delay-500">
-            <button
-              className="px-6 py-2 rounded-lg bg-[#eaedf1] hover:bg-[#dce7f3] text-[#101418] font-semibold shadow transition-colors w-full"
-              type="button"
-            >
-              ← Back to Homepage
-            </button>
-          </Link>
+            <h1 className="text-4xl font-extrabold mb-4 font-sora tracking-wide animate-fade-in-up animate-delay-100">Welcome to Stitch</h1>
+            <p className="text-lg opacity-90 font-sora animate-fade-in-up animate-delay-200">
+              Organize, track, and excel in your courses with our intuitive platform.
+            </p>
+          </div>
+          <ul className="space-y-4 text-left">
+            {features.map((f, i) => (
+              <li key={f} className="flex items-center gap-3 animate-fade-in-up" style={{ animationDelay: `${(i + 3) * 0.1}s` }}>
+                <span className="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center flex-shrink-0 text-xl">✔️</span>
+                <span className="font-sora">{f}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
-      {/* Animations */}
+      <span className="absolute w-96 h-96 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-br from-purple-400 via-indigo-200 to-blue-200 opacity-30 blur-3xl rounded-full z-0"></span>
+    </div>
+  );
+}
+
+export default function SignupPage() {
+  const [isLogin, setIsLogin] = useState(true);
+  const [showPwd, setShowPwd] = useState(false);
+  const [showSignPwd, setShowSignPwd] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupLoading, setSignupLoading] = useState(false);
+  const [signupError, setSignupError] = useState('');
+  const [signupSuccess, setSignupSuccess] = useState(false);
+
+  const handleTab = (login: boolean) => {
+    setIsLogin(login);
+    setLoginError('');
+    setSignupError('');
+    setSignupSuccess(false);
+  };
+
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoginLoading(true);
+    setLoginError('');
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: loginPassword,
+      });
+      if (error) setLoginError(error.message);
+      else window.location.href = '/';
+    } catch {
+      setLoginError('Login failed. Please try again.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSignupLoading(true);
+    setSignupError('');
+    setSignupSuccess(false);
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: signupEmail,
+        password: signupPassword,
+        options: { data: { first_name: firstName, last_name: lastName } },
+      });
+      if (error) setSignupError(error.message);
+      else setSignupSuccess(true);
+    } catch {
+      setSignupError('Sign up failed. Please try again.');
+    } finally {
+      setSignupLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex bg-gradient-to-br from-indigo-100 via-blue-100 to-purple-100 font-sora">
+      <BrandingSection />
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 lg:p-12">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 animate-fade-in-down">
+          <div className="lg:hidden text-center mb-8">
+            <h2 className="text-3xl font-extrabold text-[#101418] font-sora mb-4">Stitch</h2>
+          </div>
+          <div className="flex mb-8 bg-[#eaedf1] rounded-xl p-1 shadow">
+            <button className={`flex-1 py-2 px-4 font-bold rounded-lg transition ${isLogin ? 'bg-white shadow-sm' : 'text-[#5c728a]'}`} onClick={() => handleTab(true)}>Sign In</button>
+            <button className={`flex-1 py-2 px-4 font-bold rounded-lg transition ${!isLogin ? 'bg-white shadow-sm' : 'text-[#5c728a]'}`} onClick={() => handleTab(false)}>Sign Up</button>
+          </div>
+          {isLogin ? (
+            <form onSubmit={handleLogin} autoComplete="off" className="space-y-4">
+              <div>
+                <label htmlFor="login-email" className="block font-semibold mb-1">Email</label>
+                <input type="email" id="login-email" className={inputClasses} value={loginEmail} onChange={e => setLoginEmail(e.target.value)} required />
+              </div>
+              <div>
+                <label htmlFor="login-password" className="block font-semibold mb-1">Password</label>
+                <PasswordInput id="login-password" placeholder="Password" show={showPwd} setShow={setShowPwd} value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
+              </div>
+              {loginError && <p className="text-red-600">{loginError}</p>}
+              <button type="submit" disabled={loginLoading} className="w-full py-3 bg-indigo-600 text-white rounded-xl">{loginLoading ? 'Signing In...' : 'Sign In'}</button>
+              <p className="text-sm">Don&apos;t have an account? <span onClick={() => handleTab(false)} className="text-indigo-600 cursor-pointer">Sign Up</span></p>
+            </form>
+          ) : (
+            <form onSubmit={handleSignup} autoComplete="off" className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="first-name" className="block font-semibold mb-1">First Name</label>
+                  <input type="text" id="first-name" className={inputClasses} value={firstName} onChange={e => setFirstName(e.target.value)} required />
+                </div>
+                <div>
+                  <label htmlFor="last-name" className="block font-semibold mb-1">Last Name</label>
+                  <input type="text" id="last-name" className={inputClasses} value={lastName} onChange={e => setLastName(e.target.value)} required />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="signup-email" className="block font-semibold mb-1">Email</label>
+                <input type="email" id="signup-email" className={inputClasses} value={signupEmail} onChange={e => setSignupEmail(e.target.value)} required />
+              </div>
+              <div>
+                <label htmlFor="signup-password" className="block font-semibold mb-1">Password</label>
+                <PasswordInput id="signup-password" placeholder="Password" show={showSignPwd} setShow={setShowSignPwd} value={signupPassword} onChange={e => setSignupPassword(e.target.value)} />
+              </div>
+              {signupError && <p className="text-red-600">{signupError}</p>}
+              {signupSuccess && <p className="text-green-600">Sign up successful! Check your email.</p>}
+              <button type="submit" disabled={signupLoading} className="w-full py-3 bg-indigo-600 text-white rounded-xl">{signupLoading ? 'Creating...' : 'Sign Up'}</button>
+              <p className="text-sm">Already have an account? <span onClick={() => handleTab(true)} className="text-indigo-600 cursor-pointer">Sign In</span></p>
+            </form>
+          )}
+          <div className="mt-6 text-center">
+            <Link href="/" className="text-gray-500">
+              Back to home
+            </Link>
+          </div>
+        </div>
+      </div>
+
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap');
         .font-sora { font-family: 'Sora', sans-serif; }
-        @keyframes fade-in-down {
-          from { opacity: 0; transform: translateY(-40px);}
-          to { opacity: 1; transform: translateY(0);}
-        }
-        .animate-fade-in-down { animation: fade-in-down 0.8s cubic-bezier(0.4,0,0.2,1) both;}
-        @keyframes fade-in-up {
-          from { opacity: 0; transform: translateY(40px);}
-          to { opacity: 1; transform: translateY(0);}
-        }
-        .animate-fade-in-up { animation: fade-in-up 0.7s cubic-bezier(0.4,0,0.2,1) both;}
-        .animate-delay-100 { animation-delay: 0.1s; }
-        .animate-delay-200 { animation-delay: 0.2s; }
-        .animate-delay-300 { animation-delay: 0.3s; }
-        .animate-delay-400 { animation-delay: 0.4s; }
-        .animate-delay-500 { animation-delay: 0.5s; }
       `}</style>
     </div>
   );
