@@ -1,26 +1,23 @@
 @import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(40px);}
+  to { opacity: 1; transform: translateY(0);}
 }
+.animate-fade-in-up { animation: fade-in-up 0.7s cubic-bezier(0.4,0,0.2,1) both; }
+.animate-delay-100 { animation-delay: 0.1s; }
+.animate-delay-200 { animation-delay: 0.2s; }
+.animate-delay-300 { animation-delay: 0.3s; }
+.animate-delay-400 { animation-delay: 0.4s; }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* Custom animation delays */
+.delay-1 { animation-delay: 0.1s; }
+.delay-2 { animation-delay: 0.2s; }
+.delay-3 { animation-delay: 0.3s; }
+.delay-4 { animation-delay: 0.4s; }
+.delay-5 { animation-delay: 0.5s; }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+/* (Optional) If you have custom keyframes or animations, add them here */

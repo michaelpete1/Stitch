@@ -1,103 +1,262 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import React, { useState, useRef, useEffect } from "react";
+import Navbar from "./components/navbar";
+import Link from "next/link";
+import { supabase } from "./lib/supabaseClient"; // Use singleton client!
+
+type Course = {
+  id: number;
+  name: string;
+  code: string;
+  instructor: string;
+  semester: string;
+  credits: number;
+  description: string;
+};
+
+export default function HomePage() {
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchCourses();
+  }, []);
+
+  async function fetchCourses() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("courses")
+      .select("*")
+      .order("name");
+    if (!error) {
+      setCourses(data || []);
+    } else {
+      setCourses([]);
+      console.error(error);
+    }
+    setLoading(false);
+  }
+
+  function handleBrowseFilesClick() {
+    fileInputRef.current?.click();
+  }
+
+  function handleFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setSelectedFiles(e.target.files);
+  }
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans homepageRoot">
+      <Navbar />
+      <main className="flex-1 flex flex-col min-w-0 customScrollbar overflow-y-auto fadeIn">
+        <div className="flex justify-between items-center p-4 lg:p-6 pt-16 lg:pt-6 slideUp delay1">
+          <h1 className="text-[#101418] text-2xl lg:text-3xl font-bold">
+            Welcome
+          </h1>
+          <Link href="/mycoursepage">
+            <button
+              className="bg-[#eaedf1] hover:bg-[#dce7f3] text-[#101418] px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 pop"
+            >
+              My Courses
+            </button>
+          </Link>
+        </div>
+        {/* Course Tabs */}
+        <div className="border-b border-[#e4e8ef] px-4 lg:px-6 slideUp delay2">
+          <div className="flex gap-4 lg:gap-8 overflow-x-auto scrollbarHide">
+            {loading ? (
+              <span className="text-[#5c728a]">Loading...</span>
+            ) : courses.length === 0 ? (
+              <span className="text-[#5c728a]">No courses yet</span>
+            ) : (
+              courses.map((course) => (
+                <a
+                  key={course.id}
+                  className="flex-shrink-0 border-b-[3px] border-b-[#dce7f3] text-[#101418] pb-3 pt-2 pop"
+                  href="#"
+                >
+                  <p className="text-sm font-bold">{course.name}</p>
+                </a>
+              ))
+            )}
+          </div>
+        </div>
+        <div className="flex-1 p-4 lg:p-6">
+          <h2 className="text-[#101418] text-xl lg:text-2xl font-bold mb-4 slideUp delay3">
+            Course Content
+          </h2>
+          {/* Course Cards */}
+          {loading ? (
+            <div className="text-center text-[#667eea] py-20">Loading courses...</div>
+          ) : courses.length === 0 ? (
+            <div className="text-center text-[#667eea] py-20">No courses to display.</div>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-8 mb-8">
+              {courses.map((course, idx) => (
+                <div
+                  key={course.id}
+                  className={`rounded-2xl bg-white shadow-lg overflow-hidden flex flex-col justify-between group hover:shadow-2xl transition-shadow duration-300 animate-fade-in-up animate-delay-${idx * 2 + 1}`}
+                >
+                  <div className="p-6 flex-1 flex flex-col gap-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded font-semibold text-xs">
+                        {course.code}
+                      </span>
+                      <span className="ml-auto text-xs text-[#5c728a]">
+                        {course.semester}
+                      </span>
+                    </div>
+                    <h2 className="text-2xl font-bold text-[#101418] mb-1 font-sora">
+                      {course.name}
+                    </h2>
+                    <div className="text-sm text-[#667eea] mb-2 font-semibold">
+                      Instructor: {course.instructor}
+                    </div>
+                    <div className="flex items-center text-sm text-[#5c728a] mb-2">
+                      <span>Credits: {course.credits}</span>
+                    </div>
+                    <p className="text-[#101418] text-sm mb-2">{course.description}</p>
+                  </div>
+                  <div className="p-6 pt-0 flex justify-end">
+                    <Link href={`/courses/${course.id}`}>
+                      <button className="px-4 py-2 rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-semibold transition-colors duration-200 font-sora">
+                        View Course
+                      </button>
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          {/* (Optional) Course Content Table and File Upload */}
+          <div className="hidden md:block overflow-hidden rounded-xl border border-[#e4e8ef] bg-white mb-6 fadeIn delay4">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-[#f8fafc]">
+                  <th className="px-4 py-3 text-left text-[#101418] text-sm font-medium">
+                    Name
+                  </th>
+                  <th className="px-4 py-3 text-left text-[#101418] text-sm font-medium">
+                    Type
+                  </th>
+                  <th className="px-4 py-3 text-left text-[#101418] text-sm font-medium">
+                    Date
+                  </th>
+                  <th className="px-4 py-3 text-left text-[#5c728a] text-sm font-medium">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t border-t-[#e4e8ef] hover:bg-[#f8fafc]">
+                  <td className="px-4 py-4 text-[#101418] text-sm">
+                    Lecture 1 Notes
+                  </td>
+                  <td className="px-4 py-4 text-[#5c728a] text-sm">Notes</td>
+                  <td className="px-4 py-4 text-[#5c728a] text-sm">
+                    2024-08-15
+                  </td>
+                  <td className="px-4 py-4">
+                    <button className="text-[#5c728a] hover:text-[#101418] text-sm font-bold pop">
+                      View
+                    </button>
+                  </td>
+                </tr>
+                <tr className="border-t border-t-[#e4e8ef] hover:bg-[#f8fafc]">
+                  <td className="px-4 py-4 text-[#101418] text-sm">
+                    Chapter 1 Summary
+                  </td>
+                  <td className="px-4 py-4 text-[#5c728a] text-sm">Summary</td>
+                  <td className="px-4 py-4 text-[#5c728a] text-sm">
+                    2024-08-16
+                  </td>
+                  <td className="px-4 py-4">
+                    <button className="text-[#5c728a] hover:text-[#101418] text-sm font-bold pop">
+                      View
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="md:hidden space-y-3 mb-6 fadeIn delay4">
+            <div className="bg-white rounded-lg border border-[#e4e8ef] p-4 pop">
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="text-[#101418] font-medium">Lecture 1 Notes</h3>
+                <button className="text-[#5c728a] text-sm font-bold pop">
+                  View
+                </button>
+              </div>
+              <div className="flex justify-between text-sm text-[#5c728a]">
+                <span>Notes</span>
+                <span>2024-08-15</span>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border-2 border-dashed border-[#e4e8ef] p-6 lg:p-12 text-center fadeIn delay5">
+            <div className="max-w-md mx-auto">
+              <h3 className="text-[#101418] text-lg font-bold mb-2">
+                Upload Course Content
+              </h3>
+              <p className="text-[#101418] text-sm mb-6">
+                Drag and drop files here, or browse
+              </p>
+              <button
+                className="bg-[#eaedf1] hover:bg-[#dce7f3] text-[#101418] px-6 py-2 rounded-xl text-sm font-bold transition-colors pop"
+                type="button"
+                onClick={handleBrowseFilesClick}
+              >
+                Browse Files
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFilesChange}
+                aria-label="Select files"
+              />
+              <div className="mt-4 text-left">
+                {selectedFiles && selectedFiles.length > 0 && (
+                  <div>
+                    <span className="block text-[#5c728a] text-sm mb-1 font-semibold">
+                      Selected files:
+                    </span>
+                    <ul className="list-disc ml-5 text-[#101418] text-sm">
+                      {Array.from(selectedFiles).map((file) => (
+                        <li key={file.name}>{file.name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          {/* LLM Chat Button */}
+          <div className="flex justify-center mt-8">
+            <Link href="/llm">
+              <button className="bg-[#667eea] text-white px-6 py-2 rounded-lg font-semibold hover:bg-[#5a67d8] transition-colors">
+                Open LLM Chat
+              </button>
+            </Link>
+          </div>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      <style jsx global>{`
+        @keyframes fade-in-up {
+          from { opacity: 0; transform: translateY(40px);}
+          to { opacity: 1; transform: translateY(0);}
+        }
+        .animate-fade-in-up { animation: fade-in-up 0.7s cubic-bezier(0.4,0,0.2,1) both;}
+        .animate-delay-1 { animation-delay: 0.1s; }
+        .animate-delay-3 { animation-delay: 0.3s; }
+        .animate-delay-5 { animation-delay: 0.5s; }
+        .animate-delay-7 { animation-delay: 0.7s; }
+      `}</style>
     </div>
   );
 }
