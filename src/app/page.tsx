@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "./components/navbar";
 import Link from "next/link";
 import { supabase } from "./lib/supabaseClient";
@@ -16,14 +17,28 @@ interface Course {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchCourses();
-  }, []);
+    // Check if user is authenticated
+    const checkSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        router.push("/signuppage");
+      } else {
+        fetchCourses();
+      }
+    };
+
+    checkSession();
+  }, [router]);
 
   async function fetchCourses() {
     setLoading(true);
@@ -45,7 +60,6 @@ export default function HomePage() {
     <div className="flex h-screen bg-gray-100 font-sans">
       <Navbar />
       <main className="flex-1 flex flex-col overflow-y-auto p-6">
-        {/* Header */}
         <header className="flex items-center justify-between mb-6">
           <h1 className="text-4xl font-extrabold text-gray-800">Dashboard</h1>
           <Link href="/mycoursepage" className="inline-block px-5 py-2 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition">
@@ -53,7 +67,6 @@ export default function HomePage() {
           </Link>
         </header>
 
-        {/* Course Tabs */}
         <nav className="mb-6">
           <div className="flex space-x-4 overflow-x-auto">
             {loading ? (
@@ -73,8 +86,7 @@ export default function HomePage() {
           </div>
         </nav>
 
-        {/* Courses Grid */}
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">  
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {loading ? (
             <div className="col-span-full text-center py-10 text-gray-500">Loading courses...</div>
           ) : courses.length ? (
@@ -107,7 +119,6 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* Upload Section */}
         <section className="mt-10">
           <div className="max-w-lg mx-auto bg-white p-8 rounded-2xl shadow-md">
             <h3 className="text-2xl font-bold text-gray-800 mb-4">Upload Course Content</h3>
@@ -141,7 +152,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* LLM Chat Button */}
         <section className="mt-10 text-center">
           <Link href="/llm" className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
             Open LLM Chat

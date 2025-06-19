@@ -1,10 +1,18 @@
-"use client";
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { User } from '@supabase/supabase-js';
-import { Plus, User as UserIcon, LogOut, Pencil, Menu as MenuIcon, X as CloseIcon } from 'lucide-react';
+import {
+  Plus,
+  User as UserIcon,
+  LogOut,
+  Pencil,
+  Menu as MenuIcon,
+  X as CloseIcon
+} from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
 interface NavLink {
@@ -18,6 +26,7 @@ interface NavLink {
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     async function getSession() {
@@ -51,6 +60,7 @@ export default function Navbar() {
       onClick: async () => {
         await supabase.auth.signOut();
         setOpen(false);
+        router.push('/signuppage'); // ✅ Redirect after logout
       }
     }
   ];
@@ -87,6 +97,7 @@ export default function Navbar() {
         onClick={() => setOpen(false)}
       />
 
+      {/* Sidebar */}
       <aside
         className={`fixed top-0 left-0 z-50 h-screen w-64 bg-white border-r flex flex-col py-4 px-4 shadow-lg transition-transform duration-300 md:static md:translate-x-0 md:shadow-none ${
           open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
