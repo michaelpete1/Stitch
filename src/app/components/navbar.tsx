@@ -81,7 +81,7 @@ export default function Navbar() {
       {/* Mobile menu button */}
       <button
         type="button"
-        className="fixed top-4 left-4 z-40 flex items-center justify-center w-10 h-10 md:hidden bg-white rounded-full shadow-md focus:outline-none"
+        className="fixed top-4 left-4 z-50 flex items-center justify-center w-10 h-10 md:hidden bg-white rounded-full shadow-md focus:outline-none"
         onClick={() => setOpen(v => !v)}
         title={open ? 'Close menu' : 'Open menu'}
       >

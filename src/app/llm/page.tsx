@@ -4,20 +4,10 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import JSZip from 'jszip';
 import { parseStringPromise } from 'xml2js';
+import Link from 'next/link';
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-
-interface GeminiError {
-  response?: {
-    data?: {
-      error?: {
-        message?: string;
-      };
-    };
-  };
-  message?: string;
-}
 
 interface GeminiResponse {
   candidates?: {
@@ -27,25 +17,16 @@ interface GeminiResponse {
   }[];
 }
 
-function isGeminiError(error: unknown): error is GeminiError {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    ('message' in error || 'response' in error)
-  );
+function isGeminiError(error: unknown): error is { response?: { data?: { error?: { message?: string } } }, message?: string } {
+  return typeof error === 'object' && error !== null && 'message' in error;
 }
 
-// Extract text from .docx files
 async function extractDocxText(file: File): Promise<string> {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const zip = await JSZip.loadAsync(arrayBuffer);
     const documentXml = await zip.file('word/document.xml')?.async('string');
-    if (!documentXml) {
-      alert('Could not find document.xml in this DOCX file.');
-      console.error('No document.xml found in DOCX file.');
-      return '';
-    }
+    if (!documentXml) throw new Error('Missing document.xml in DOCX.');
 
     const xml = await parseStringPromise(documentXml);
     const paragraphs = xml['w:document']?.['w:body']?.[0]?.['w:p'] || [];
@@ -62,15 +43,9 @@ async function extractDocxText(file: File): Promise<string> {
     }
     return textArr.join(' ');
   } catch (err) {
-    alert('Failed to extract text from DOCX file. Please try a different file.');
     console.error('DOCX extraction error:', err);
     return '';
   }
-}
-
-interface DocxFile {
-  name: string;
-  text: string;
 }
 
 const LLMPage: React.FC = () => {
@@ -78,7 +53,6 @@ const LLMPage: React.FC = () => {
   const [chat, setChat] = useState<{ role: string; content: string }[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [docxCollection, setDocxCollection] = useState<DocxFile[]>([]);
 
   const handleSend = async () => {
     if ((!input.trim() && !file) || !GEMINI_API_KEY) return;
@@ -90,20 +64,13 @@ const LLMPage: React.FC = () => {
       let fileText = '';
       if (file.name.toLowerCase().endsWith('.docx')) {
         fileText = await extractDocxText(file);
-        console.log('Extracted DOCX text:', fileText);
         if (!fileText.trim()) {
-          setLoading(false);
-          return; // Stop if extraction failed
-        }
-        // Add to DOCX collection if not already present
-        if (!docxCollection.some(doc => doc.name === file.name)) {
-          setDocxCollection(prev => [...prev, { name: file.name, text: fileText }]);
+          setChat(prev => [...prev, { role: 'gemini', content: 'Could not extract text from the uploaded DOCX file.' }]);
+          return;
         }
       } else {
         fileText = await file.text();
-        console.log('Plain file text:', fileText);
       }
-      // If no input, just use file text
       if (!input.trim()) {
         userMessage = fileText;
         parts = [{ text: fileText }];
@@ -117,23 +84,20 @@ const LLMPage: React.FC = () => {
     setLoading(true);
 
     try {
-      // Optionally, you can send the docxCollection as context to Gemini here
       const response = await axios.post<GeminiResponse>(
         `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
-        {
-          contents: [{ parts }]
-        }
+        { contents: [{ parts }] }
       );
-      const botReply = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
+      const botReply = (response.data as GeminiResponse)?.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
       setChat(prev => [...prev, { role: 'gemini', content: botReply }]);
     } catch (err: unknown) {
-      let message = 'Unknown error';
+      let errorMsg = 'An unknown error occurred';
       if (isGeminiError(err)) {
-        message = err.response?.data?.error?.message || err.message || message;
+        errorMsg = err.response?.data?.error?.message || err.message || errorMsg;
       } else if (err instanceof Error) {
-        message = err.message;
+        errorMsg = err.message;
       }
-      setChat(prev => [...prev, { role: 'gemini', content: 'Error: ' + message }]);
+      setChat(prev => [...prev, { role: 'gemini', content: 'Error: ' + errorMsg }]);
     } finally {
       setInput('');
       setFile(null);
@@ -143,13 +107,12 @@ const LLMPage: React.FC = () => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      setFile(selectedFile);
+      setFile(e.target.files[0]);
     }
   };
 
   return (
-    <div className="max-w-3xl mx-auto min-h-screen flex flex-col bg-white rounded-2xl shadow-lg p-8 mt-10">
+    <div className="max-w-xl mx-auto min-h-screen flex flex-col bg-white rounded-2xl shadow-lg p-6 mt-10">
       <h2 className="text-2xl font-bold text-center mb-4 text-indigo-700">Gemini LLM Chat</h2>
       <div className="mb-4 flex items-center gap-3">
         <label className="flex items-center gap-2 cursor-pointer text-gray-700">
@@ -160,25 +123,7 @@ const LLMPage: React.FC = () => {
           <span className="text-sm text-gray-500 truncate max-w-xs">Selected: {file.name}</span>
         )}
       </div>
-
-      {/* DOCX Collection Section */}
-      {docxCollection.length > 0 && (
-        <div className="mb-6 bg-indigo-50 rounded-lg p-4">
-          <h3 className="font-bold text-indigo-700 mb-2 text-lg">DOCX Collection</h3>
-          <ul className="list-disc pl-5 space-y-1 text-indigo-900 text-sm">
-            {docxCollection.map(doc => (
-              <li key={doc.name}>
-                <span className="font-semibold">{doc.name}</span>
-                <span className="ml-2 text-gray-500">
-                  ({doc.text.slice(0, 60)}{doc.text.length > 60 ? '...' : ''})
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="flex-1 overflow-y-auto bg-gray-50 rounded-lg p-6 mb-4 min-h-[500px] max-h-[700px] flex flex-col gap-3">
+      <div className="flex-1 overflow-y-auto bg-gray-50 rounded-lg p-4 mb-4 min-h-[250px] max-h-[350px] flex flex-col gap-3">
         {chat.length === 0 && (
           <div className="text-gray-400 text-center mt-10">Start the conversation with Gemini!</div>
         )}
@@ -216,6 +161,11 @@ const LLMPage: React.FC = () => {
         >
           Send
         </button>
+      </div>
+      <div className="mt-6 flex justify-center">
+        <Link href="/" className="px-6 py-2 rounded-lg bg-[#eaedf1] hover:bg-[#dce7f3] text-[#101418] font-semibold shadow transition-colors">
+          ← Back to Homepage
+        </Link>
       </div>
     </div>
   );

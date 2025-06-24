@@ -26,14 +26,19 @@ export default function HomePage() {
   useEffect(() => {
     // Check if user is authenticated
     const checkSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const {
+          data: { session },
+          error
+        } = await supabase.auth.getSession();
 
-      if (!session) {
+        if (error || !session) {
+          router.push("/signuppage");
+        } else {
+          fetchCourses();
+        }
+      } catch {
         router.push("/signuppage");
-      } else {
-        fetchCourses();
       }
     };
 
@@ -57,9 +62,9 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100 font-sans">
+    <div className="flex flex-col md:flex-row h-screen bg-gray-100 font-sans">
       <Navbar />
-      <main className="flex-1 flex flex-col overflow-y-auto p-6">
+      <main className="flex-1 flex flex-col overflow-y-auto p-6 pt-16 md:pt-6">
         <header className="flex items-center justify-between mb-6">
           <h1 className="text-4xl font-extrabold text-gray-800">Dashboard</h1>
           <Link href="/mycoursepage" className="inline-block px-5 py-2 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition">

@@ -12,16 +12,20 @@ export default function RedirectWrapper({ children }: { children: React.ReactNod
 
   useEffect(() => {
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      const session = data.session;
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        const session = data.session;
 
-      if (!session && pathname === "/") {
+        if (error || !session) {
+          router.replace("/signuppage");
+        } else if (session && pathname === "/signuppage") {
+          router.replace("/");
+        }
+      } catch {
         router.replace("/signuppage");
-      } else if (session && pathname === "/signuppage") {
-        router.replace("/");
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     checkSession();
