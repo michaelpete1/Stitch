@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { User } from '@supabase/supabase-js';
@@ -12,6 +12,8 @@ export default function ProfilePage() {
   const [nameInput, setNameInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const getUser = async () => {
@@ -81,6 +83,47 @@ export default function ProfilePage() {
     setSaving(false);
   }
 
+  // Add this function for avatar upload
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploading(true);
+    const fileExt = file.name.split('.').pop();
+    const filePath = `public/${user.id}/avatar.${fileExt}`;
+    // 1. Upload to Supabase Storage
+    const { error } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file, { upsert: true });
+    if (error) {
+      setMessage({ type: 'error', text: 'Upload failed: ' + error.message });
+      setUploading(false);
+      return;
+    }
+    // 2. Get public URL
+    const { data: urlData } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(filePath);
+    const publicUrl = urlData?.publicUrl;
+    if (!publicUrl) {
+      setMessage({ type: 'error', text: 'Could not get public URL!' });
+      setUploading(false);
+      return;
+    }
+    // 3. Update user profile
+    const { error: updateError } = await supabase.auth.updateUser({
+      data: { ...user.user_metadata, avatar_url: publicUrl }
+    });
+    setUploading(false);
+    if (updateError) {
+      setMessage({ type: 'error', text: 'Profile update failed: ' + updateError.message });
+    } else {
+      setMessage({ type: 'success', text: 'Profile photo updated!' });
+      // Refetch user to update UI
+      const { data } = await supabase.auth.getUser();
+      setUser(data.user);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-start pt-16 bg-gradient-to-br from-indigo-100 via-blue-100 to-purple-100">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 mt-16 animate-fade-in-down">
@@ -96,6 +139,19 @@ export default function ProfilePage() {
               priority
               unoptimized // For external URLs
             />
+            <label htmlFor="avatar-upload" className="mt-2 px-4 py-1 rounded bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-sm font-semibold shadow cursor-pointer">
+              {uploading ? 'Uploading...' : 'Change Photo'}
+              <input
+                id="avatar-upload"
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                className="sr-only"
+                onChange={handleAvatarChange}
+                aria-label="Upload profile photo"
+                title="Upload profile photo"
+              />
+            </label>
           </div>
           {editing ? (
             <form onSubmit={handleSaveName} className="flex flex-col items-center w-full animate-fade-in-up animate-delay-100">
