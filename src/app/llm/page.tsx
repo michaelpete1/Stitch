@@ -11,15 +11,14 @@ type ChatMessage = {
   id: number;
 };
 
-function getRandomAIResponse() {
-  // 'userMessage' param removed since it was unused
-  const responses = [
-    "Based on your Lecture 1 Notes, the main concepts covered include the definition of psychology, its historical development, and major schools of thought like behaviorism and cognitive psychology. Would you like me to elaborate on any of these topics?",
-    "That's a great question! Let me break down the key points from your lecture notes to help you understand this concept better.",
-    "I can help you create a study guide for this topic. Based on your lecture notes, here are the most important points to remember:",
-    "From your course materials, I can see this relates to the fundamental principles we discussed. Let me explain this in more detail.",
-  ];
-  return responses[Math.floor(Math.random() * responses.length)];
+async function fetchGeminiResponse(userMessage: string): Promise<string> {
+  const res = await fetch('/api/gemini', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userMessage })
+  });
+  const data = await res.json();
+  return data.aiText;
 }
 
 const welcomeMessage: ChatMessage = {
@@ -70,38 +69,53 @@ export default function LLMPage() {
     setInput(e.target.value);
   }
 
-  function handleSend(e?: React.FormEvent) {
-    if (e) e.preventDefault();
-    const message = input.trim();
-    if (!message || isTyping) return;
-    const time = new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  async function handleSend(e?: React.FormEvent) {
+  if (e) e.preventDefault();
+  const message = input.trim();
+  if (!message || isTyping) return;
+  const time = new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  setMessages((prev) => [
+    ...prev,
+    { sender: "user", text: message, time, id: Date.now() },
+  ]);
+  setInput("");
+  setShowSuggestions(false);
+  setIsTyping(true);
+
+  // Call Gemini
+  try {
+    const aiText = await fetchGeminiResponse(message);
     setMessages((prev) => [
       ...prev,
-      { sender: "user", text: message, time, id: Date.now() },
+      {
+        sender: "ai",
+        text: aiText,
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        id: Date.now() + 1,
+      },
     ]);
-    setInput("");
-    setShowSuggestions(false);
-    setIsTyping(true);
-
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "ai",
-          text: getRandomAIResponse(),
-          time: new Date().toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-          id: Date.now() + 1,
-        },
-      ]);
-      setIsTyping(false);
-    }, 1600 + Math.random() * 500);
+  } catch (err) {
+    setMessages((prev) => [
+      ...prev,
+      {
+        sender: "ai",
+        text: "There was an error connecting to Gemini.",
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        id: Date.now() + 2,
+      },
+    ]);
   }
+  setIsTyping(false);
+}
 
   function handleSuggestionClick(question: string) {
     setInput(question);
