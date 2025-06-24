@@ -1,273 +1,224 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from "react";
-import Navbar from "../components/navbar";
-import styles from "./llm.module.css";
+import React, { useState } from 'react';
+import axios from 'axios';
+import JSZip from 'jszip';
+import { parseStringPromise } from 'xml2js';
 
-type ChatMessage = {
-  sender: "ai" | "user";
-  text: string;
-  time: string;
-  id: number;
-};
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
-async function fetchGeminiResponse(userMessage: string): Promise<string> {
-  const res = await fetch('/api/gemini', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userMessage })
-  });
-  const data = await res.json();
-  return data.aiText;
-}
-
-const welcomeMessage: ChatMessage = {
-  sender: "ai",
-  text:
-    "Hi! I'm your AI study assistant for Introduction to Psychology. I have access to your Lecture 1 Notes and can help you understand concepts, answer questions, and create study materials. What would you like to know about today's lecture?",
-  time: "Just now",
-  id: 0,
-};
-
-const suggestedQuestionsArr = [
-  "What are the main concepts in this lecture?",
-  "Create a summary of key points",
-  "Generate practice questions",
-];
-
-export default function LLMPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([welcomeMessage]);
-  const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const [showScrollBtn, setShowScrollBtn] = useState(false);
-
-  useEffect(() => {
-    if (!messagesContainerRef.current) return;
-    if (!showScrollBtn) {
-      messagesContainerRef.current.scrollTop =
-        messagesContainerRef.current.scrollHeight;
-    }
-  }, [messages, showScrollBtn]);
-
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-    const handler = () => {
-      const isNearBottom =
-        container.scrollTop + container.clientHeight >= container.scrollHeight - 100;
-      setShowScrollBtn(!isNearBottom);
+interface GeminiError {
+  response?: {
+    data?: {
+      error?: {
+        message?: string;
+      };
     };
-    container.addEventListener("scroll", handler);
-    return () => container.removeEventListener("scroll", handler);
-  }, []);
-
-  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    setInput(e.target.value);
-  }
-
-  async function handleSend(e?: React.FormEvent) {
-  if (e) e.preventDefault();
-  const message = input.trim();
-  if (!message || isTyping) return;
-  const time = new Date().toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  setMessages((prev) => [
-    ...prev,
-    { sender: "user", text: message, time, id: Date.now() },
-  ]);
-  setInput("");
-  setShowSuggestions(false);
-  setIsTyping(true);
-
-  // Call Gemini
-  try {
-    const aiText = await fetchGeminiResponse(message);
-    setMessages((prev) => [
-      ...prev,
-      {
-        sender: "ai",
-        text: aiText,
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        id: Date.now() + 1,
-      },
-    ]);
-  } catch (err) {
-    setMessages((prev) => [
-      ...prev,
-      {
-        sender: "ai",
-        text: "There was an error connecting to Gemini.",
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        id: Date.now() + 2,
-      },
-    ]);
-  }
-  setIsTyping(false);
+  };
+  message?: string;
 }
 
-  function handleSuggestionClick(question: string) {
-    setInput(question);
-  }
+interface GeminiResponse {
+  candidates?: {
+    content?: {
+      parts?: { text?: string }[];
+    };
+  }[];
+}
 
-  function handleClearChat() {
-    setMessages([welcomeMessage]);
-    setShowSuggestions(true);
-    setInput("");
-  }
-
-  function handleScrollToBottom() {
-    messagesContainerRef.current?.scrollTo({
-      top: messagesContainerRef.current.scrollHeight,
-      behavior: "smooth",
-    });
-  }
-
+function isGeminiError(error: unknown): error is GeminiError {
   return (
-    <div className={`flex h-screen bg-gray-50 overflow-hidden ${styles.llmPageRoot}`}>
-      <Navbar />
-      <main className="flex-1 flex flex-col min-w-0 bg-white">
-        <div className="flex items-center justify-between p-4 lg:p-6 pt-16 lg:pt-6 border-b border-[#d4dbe2] bg-white">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#eaedf1] rounded-full flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256">
-                <path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM40,56H216V88H40ZM40,200V104H216v96Z"></path>
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-[#101418] text-lg font-bold">Lecture 1 Notes</h1>
-              <p className="text-[#5c728a] text-sm">Introduction to Psychology</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              className="p-2 text-[#5c728a] hover:text-[#101418] hover:bg-gray-100 rounded-lg transition-colors"
-              onClick={handleClearChat}
-              aria-label="Clear chat"
-              title="Clear chat"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256">
-                <path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"></path>
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col min-h-0 relative">
-          <div
-            ref={messagesContainerRef}
-            className={`flex-1 overflow-y-auto p-4 lg:p-6 space-y-6 ${styles.customScrollbar}`}
-          >
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex items-start gap-3 ${styles.messageFadeIn}`}
-              >
-                <div className={`w-8 h-8 ${msg.sender === "user" ? "bg-[#dce7f3]" : "bg-[#eaedf1]"} rounded-full flex items-center justify-center flex-shrink-0`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
-                    <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24ZM74.08,197.5a64,64,0,0,1,107.84,0,87.83,87.83,0,0,1-107.84,0ZM96,120a32,32,0,1,1,32,32A32,32,0,0,1,96,120Zm97.76,66.41a79.66,79.66,0,0,0-36.06-28.75,48,48,0,1,0-59.4,0,79.66,79.66,0,0,0-36.06,28.75,88,88,0,1,1,131.52,0Z"></path>
-                  </svg>
-                </div>
-                <div className="flex-1 max-w-3xl">
-                  <div className={`bg-${msg.sender === "user" ? "[#f0f4f8]" : "gray-50"} rounded-2xl ${msg.sender === "user" ? "rounded-tr-md" : "rounded-tl-md"} p-4`}>
-                    <p className="text-[#101418] text-sm leading-relaxed">{msg.text}</p>
-                  </div>
-                  <p className="text-[#5c728a] text-xs mt-2">{msg.time}</p>
-                </div>
-              </div>
-            ))}
-            {isTyping && (
-              <div className={`flex items-start gap-3 ${styles.messageFadeIn}`}>
-                <div className="w-8 h-8 bg-[#eaedf1] rounded-full flex items-center justify-center flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
-                    <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24ZM74.08,197.5a64,64,0,0,1,107.84,0,87.83,87.83,0,0,1-107.84,0ZM96,120a32,32,0,1,1,32,32A32,32,0,0,1,96,120Zm97.76,66.41a79.66,79.66,0,0,0-36.06-28.75,48,48,0,1,0-59.4,0,79.66,79.66,0,0,0-36.06,28.75,88,88,0,1,1,131.52,0Z"></path>
-                  </svg>
-                </div>
-                <div className="flex-1 max-w-3xl">
-                  <div className="bg-gray-50 rounded-2xl rounded-tl-md p-4">
-                    <div className={styles.typingIndicator}>
-                      <div className={styles.typingDot}></div>
-                      <div className={styles.typingDot}></div>
-                      <div className={styles.typingDot}></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-          <button
-            className={`${styles.scrollToBottom} absolute bottom-4 right-4 bg-white border border-[#d4dbe2] text-[#5c728a] hover:text-[#101418] hover:bg-gray-50 p-2 rounded-full shadow-lg transition-colors ${!showScrollBtn ? styles.scrollToBottomHidden : ""}`}
-            onClick={handleScrollToBottom}
-            aria-label="Scroll to latest message"
-            tabIndex={showScrollBtn ? 0 : -1}
-            type="button"
-            title="Scroll to latest message"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256">
-              <path d="M213.66,165.66a8,8,0,0,1-11.32,0L128,91.31,53.66,165.66a8,8,0,0,1-11.32-11.32l80-80a8,8,0,0,1,11.32,0l80,80A8,8,0,0,1,213.66,165.66Z"></path>
-            </svg>
-          </button>
-          <div className="border-t border-[#d4dbe2] p-4 lg:p-6 bg-white">
-            <div className="max-w-4xl mx-auto">
-              <form className="flex items-end gap-3" onSubmit={handleSend}>
-                <div className="flex-1 relative">
-                  <textarea
-                    value={input}
-                    onChange={handleInputChange}
-                    placeholder="Ask me anything about your course content..."
-                    className="w-full min-h-[44px] max-h-32 px-4 py-3 pr-12 border border-[#d4dbe2] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#dce7f3] focus:border-transparent text-[#101418] text-sm resize-none"
-                    rows={1}
-                    onKeyDown={e => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSend();
-                      }
-                    }}
-                    aria-label="Type your message"
-                  />
-                  <button
-                    className="absolute right-2 bottom-2 p-2 bg-[#eaedf1] hover:bg-[#dce7f3] disabled:bg-gray-100 disabled:text-gray-400 text-[#101418] rounded-lg transition-colors"
-                    disabled={!input.trim() || isTyping}
-                    type="submit"
-                    aria-label="Send message"
-                    title="Send message"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256">
-                      <path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z" transform="rotate(180 128 128)"></path>
-                    </svg>
-                  </button>
-                </div>
-              </form>
-              {showSuggestions && (
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {suggestedQuestionsArr.map(question => (
-                    <button
-                      key={question}
-                      className="suggestion-btn px-3 py-2 bg-gray-50 hover:bg-gray-100 text-[#101418] text-sm rounded-lg border border-[#d4dbe2] transition-colors"
-                      type="button"
-                      onClick={() => handleSuggestionClick(question)}
-                      aria-label={`Use suggested question: ${question}`}
-                    >
-                      {question}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
+    typeof error === 'object' &&
+    error !== null &&
+    ('message' in error || 'response' in error)
   );
 }
+
+// Extract text from .docx files
+async function extractDocxText(file: File): Promise<string> {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    const documentXml = await zip.file('word/document.xml')?.async('string');
+    if (!documentXml) {
+      alert('Could not find document.xml in this DOCX file.');
+      console.error('No document.xml found in DOCX file.');
+      return '';
+    }
+
+    const xml = await parseStringPromise(documentXml);
+    const paragraphs = xml['w:document']?.['w:body']?.[0]?.['w:p'] || [];
+    const textArr: string[] = [];
+    for (const p of paragraphs) {
+      const runs = p['w:r'] || [];
+      for (const r of runs) {
+        const texts = r['w:t'] || [];
+        for (const t of texts) {
+          if (typeof t === 'string') textArr.push(t);
+          else if (t._) textArr.push(t._);
+        }
+      }
+    }
+    return textArr.join(' ');
+  } catch (err) {
+    alert('Failed to extract text from DOCX file. Please try a different file.');
+    console.error('DOCX extraction error:', err);
+    return '';
+  }
+}
+
+interface DocxFile {
+  name: string;
+  text: string;
+}
+
+const LLMPage: React.FC = () => {
+  const [input, setInput] = useState('');
+  const [chat, setChat] = useState<{ role: string; content: string }[]>([]);
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [docxCollection, setDocxCollection] = useState<DocxFile[]>([]);
+
+  const handleSend = async () => {
+    if ((!input.trim() && !file) || !GEMINI_API_KEY) return;
+
+    let userMessage = input;
+    let parts = [{ text: input }];
+
+    if (file) {
+      let fileText = '';
+      if (file.name.toLowerCase().endsWith('.docx')) {
+        fileText = await extractDocxText(file);
+        console.log('Extracted DOCX text:', fileText);
+        if (!fileText.trim()) {
+          setLoading(false);
+          return; // Stop if extraction failed
+        }
+        // Add to DOCX collection if not already present
+        if (!docxCollection.some(doc => doc.name === file.name)) {
+          setDocxCollection(prev => [...prev, { name: file.name, text: fileText }]);
+        }
+      } else {
+        fileText = await file.text();
+        console.log('Plain file text:', fileText);
+      }
+      // If no input, just use file text
+      if (!input.trim()) {
+        userMessage = fileText;
+        parts = [{ text: fileText }];
+      } else {
+        userMessage += `\n\nFile Content:\n${fileText}`;
+        parts.push({ text: `File Content:\n${fileText}` });
+      }
+    }
+
+    setChat(prev => [...prev, { role: 'user', content: userMessage }]);
+    setLoading(true);
+
+    try {
+      // Optionally, you can send the docxCollection as context to Gemini here
+      const response = await axios.post<GeminiResponse>(
+        `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
+        {
+          contents: [{ parts }]
+        }
+      );
+      const botReply = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
+      setChat(prev => [...prev, { role: 'gemini', content: botReply }]);
+    } catch (err: unknown) {
+      let message = 'Unknown error';
+      if (isGeminiError(err)) {
+        message = err.response?.data?.error?.message || err.message || message;
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+      setChat(prev => [...prev, { role: 'gemini', content: 'Error: ' + message }]);
+    } finally {
+      setInput('');
+      setFile(null);
+      setLoading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0];
+      setFile(selectedFile);
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto min-h-screen flex flex-col bg-white rounded-2xl shadow-lg p-8 mt-10">
+      <h2 className="text-2xl font-bold text-center mb-4 text-indigo-700">Gemini LLM Chat</h2>
+      <div className="mb-4 flex items-center gap-3">
+        <label className="flex items-center gap-2 cursor-pointer text-gray-700">
+          <span role="img" aria-label="upload">📎</span> Upload File:
+          <input type="file" onChange={handleFileChange} className="hidden" />
+        </label>
+        {file && (
+          <span className="text-sm text-gray-500 truncate max-w-xs">Selected: {file.name}</span>
+        )}
+      </div>
+
+      {/* DOCX Collection Section */}
+      {docxCollection.length > 0 && (
+        <div className="mb-6 bg-indigo-50 rounded-lg p-4">
+          <h3 className="font-bold text-indigo-700 mb-2 text-lg">DOCX Collection</h3>
+          <ul className="list-disc pl-5 space-y-1 text-indigo-900 text-sm">
+            {docxCollection.map(doc => (
+              <li key={doc.name}>
+                <span className="font-semibold">{doc.name}</span>
+                <span className="ml-2 text-gray-500">
+                  ({doc.text.slice(0, 60)}{doc.text.length > 60 ? '...' : ''})
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto bg-gray-50 rounded-lg p-6 mb-4 min-h-[500px] max-h-[700px] flex flex-col gap-3">
+        {chat.length === 0 && (
+          <div className="text-gray-400 text-center mt-10">Start the conversation with Gemini!</div>
+        )}
+        {chat.map((msg, idx) => (
+          <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`rounded-xl px-4 py-2 max-w-[80%] shadow ${msg.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-gray-900'}`}>
+              <div className="text-xs font-semibold opacity-70 mb-1">{msg.role === 'user' ? 'You' : 'Gemini'}</div>
+              <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div className="flex justify-start">
+            <div className="rounded-xl px-4 py-2 bg-indigo-100 text-gray-900 max-w-[80%] shadow">
+              <div className="text-xs font-semibold opacity-70 mb-1">Gemini</div>
+              <div>Typing...</div>
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="flex gap-2 mt-auto">
+        <input
+          type="text"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="Ask Gemini anything..."
+          className="flex-1 px-4 py-2 border border-indigo-200 rounded-lg focus:outline-none focus:border-indigo-500"
+          disabled={loading}
+          onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
+        />
+        <button
+          className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-semibold disabled:bg-indigo-300 transition"
+          onClick={handleSend}
+          disabled={loading || (!input.trim() && !file)}
+        >
+          Send
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default LLMPage;

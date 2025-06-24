@@ -75,8 +75,7 @@ function BrandingSection() {
             {features.map((f, i) => (
               <li
                 key={f}
-                className="flex items-center gap-3 animate-fade-in-up"
-                style={{ animationDelay: `${(i + 3) * 0.1}s` }}
+                className={`flex items-center gap-3 animate-fade-in-up delay-${i + 3}`}
               >
                 <span className="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center flex-shrink-0 text-xl">
                   ✅
