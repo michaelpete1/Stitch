@@ -1,6 +1,4 @@
-// @ts-ignore: No types for 'pdf-parse'
 import mammoth from "mammoth";
-// @ts-ignore: No types for 'pdf-parse'
 import pdfParse from "pdf-parse";
 
 export async function extractTextFromFile(file: File, fileType: string): Promise<string> {
