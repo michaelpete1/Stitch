@@ -115,18 +115,18 @@ export default function HomePage() {
   const activeCourse = courses.find(c => c.id === activeCourseId);
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-gray-100 font-sans">
+    <div className="flex flex-col md:flex-row min-h-screen bg-gray-100 font-sans">
       <Navbar />
-      <main className="flex-1 flex flex-col overflow-y-auto p-6 pt-16 md:pt-6">
-        <header className="flex items-center justify-between mb-8 animate-fade-in-down">
-          <h1 className="text-4xl font-extrabold text-indigo-700 tracking-tight drop-shadow-lg animate-fade-in-down">Course Center</h1>
-          <Link href="/mycoursepage" className="inline-block px-5 py-2 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-lg shadow-lg hover:from-indigo-600 hover:to-blue-600 transition-transform duration-300 hover:scale-105">
+      <main className="flex-1 flex flex-col overflow-y-auto p-4 pt-16 md:pt-6">
+        <header className="flex flex-col sm:flex-row items-center justify-between mb-8 animate-fade-in-down gap-4">
+          <h1 className="text-4xl font-extrabold text-indigo-700 tracking-tight drop-shadow-lg animate-fade-in-down text-center sm:text-left">Course Center</h1>
+          <Link href="/mycoursepage" className="inline-block w-full sm:w-auto px-5 py-2 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-lg shadow-lg hover:from-indigo-600 hover:to-blue-600 transition-transform duration-300 hover:scale-105 text-center">
             My Courses
           </Link>
         </header>
 
-        <div className="w-full max-w-3xl mx-auto mt-8">
-          <div className="flex border-b border-gray-200">
+        <div className="w-full max-w-3xl mx-auto mt-4 px-2 sm:px-4">
+          <div className="flex border-b border-gray-200 overflow-x-auto no-scrollbar whitespace-nowrap">
             {courses.map((course) => (
               <button
                 key={course.id}
@@ -135,7 +135,7 @@ export default function HomePage() {
                   setActiveCourseId(course.id);
                 }}
                 className={`
-                  px-6 py-3 font-semibold transition
+                  px-4 sm:px-6 py-2 sm:py-3 min-w-[120px] sm:min-w-[160px] text-sm sm:text-base font-semibold transition
                   ${selectedCourse?.id === course.id
                     ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50'
                     : 'text-gray-600 hover:text-blue-500 hover:bg-gray-100'}
@@ -146,7 +146,7 @@ export default function HomePage() {
               </button>
             ))}
           </div>
-          <div className="p-6 bg-white rounded-b-lg shadow">
+          <div className="p-4 sm:p-6 bg-white rounded-b-lg shadow">
             {/* Show course details/notes here */}
             <h2 className="text-xl font-bold mb-2">{selectedCourse?.name}</h2>
             <p className="text-gray-700 mb-4">{selectedCourse?.code}</p>
@@ -160,7 +160,7 @@ export default function HomePage() {
 
         {/* Active Course Details & Lecture Notes */}
         {activeCourse && (
-          <section className="mb-10 animate-fade-in-up">
+          <section className="mb-10 animate-fade-in-up px-2 sm:px-0">
             <div className="mb-8">
               <h2 className="text-2xl font-bold mb-2 text-indigo-700 animate-fade-in-down">{activeCourse.name}</h2>
               <p className="mb-1 text-gray-700"><span className="font-bold">Lecturer:</span> {activeCourse.instructor}</p>
@@ -175,13 +175,13 @@ export default function HomePage() {
                   id="lecture-note-upload"
                   type="file"
                   ref={fileInputRef}
-                  className="block border border-gray-300 rounded px-3 py-2 text-sm"
+                  className="block border border-gray-300 rounded px-3 py-2 text-sm w-full sm:w-auto"
                   required
                   accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.md,.rtf,.odt,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.gif,.bmp,.svg,.webp,.zip,.rar,.7z,.tar,.gz,.mp3,.mp4,.wav,.avi,.mov,.mkv,.json,.xml,.html,.js,.ts,.tsx,.py,.java,.c,.cpp,.cs,.rb,.go,.php,.sh,.bat,.ps1"
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-lg shadow hover:from-indigo-600 hover:to-blue-600 transition-transform duration-300 hover:scale-105"
+                  className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-lg shadow hover:from-indigo-600 hover:to-blue-600 transition-transform duration-300 hover:scale-105"
                   disabled={uploading}
                 >
                   {uploading ? 'Uploading...' : 'Upload Lecture Note'}
@@ -227,6 +227,14 @@ export default function HomePage() {
         }
         .animate-fade-in-up {
           animation: fade-in-up 0.7s cubic-bezier(0.4,0,0.2,1) both;
+        }
+        /* Hide scrollbar utility */
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
       `}</style>
     </div>
