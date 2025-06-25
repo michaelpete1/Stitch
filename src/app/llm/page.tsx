@@ -1,172 +1,195 @@
 'use client';
 
-import React, { useState } from 'react';
-import axios from 'axios';
-import JSZip from 'jszip';
-import { parseStringPromise } from 'xml2js';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { supabase } from "../lib/supabaseClient";
+import LLMChat from "../components/LLMChat";
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-
-interface GeminiResponse {
-  candidates?: {
-    content?: {
-      parts?: { text?: string }[];
-    };
-  }[];
+// Type definitions
+interface Course {
+  id: number;
+  name: string;
+  code: string;
+  instructor: string;
+  semester: string;
+  credits: number;
+  description: string;
 }
 
-function isGeminiError(error: unknown): error is { response?: { data?: { error?: { message?: string } } }, message?: string } {
-  return typeof error === 'object' && error !== null && 'message' in error;
-}
-
-async function extractDocxText(file: File): Promise<string> {
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const zip = await JSZip.loadAsync(arrayBuffer);
-    const documentXml = await zip.file('word/document.xml')?.async('string');
-    if (!documentXml) throw new Error('Missing document.xml in DOCX.');
-
-    const xml = await parseStringPromise(documentXml);
-    const paragraphs = xml['w:document']?.['w:body']?.[0]?.['w:p'] || [];
-    const textArr: string[] = [];
-    for (const p of paragraphs) {
-      const runs = p['w:r'] || [];
-      for (const r of runs) {
-        const texts = r['w:t'] || [];
-        for (const t of texts) {
-          if (typeof t === 'string') textArr.push(t);
-          else if (t._) textArr.push(t._);
-        }
-      }
-    }
-    return textArr.join(' ');
-  } catch (err) {
-    console.error('DOCX extraction error:', err);
-    return '';
-  }
+interface LectureNote {
+  id: string;
+  name: string;
+  url: string;
 }
 
 const LLMPage: React.FC = () => {
-  const [input, setInput] = useState('');
-  const [chat, setChat] = useState<{ role: string; content: string }[]>([]);
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [lectureNotes, setLectureNotes] = useState<LectureNote[]>([]);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const handleSend = async () => {
-    if ((!input.trim() && !file) || !GEMINI_API_KEY) return;
-
-    let userMessage = input;
-    let parts = [{ text: input }];
-
-    if (file) {
-      let fileText = '';
-      if (file.name.toLowerCase().endsWith('.docx')) {
-        fileText = await extractDocxText(file);
-        if (!fileText.trim()) {
-          setChat(prev => [...prev, { role: 'gemini', content: 'Could not extract text from the uploaded DOCX file.' }]);
-          return;
+  useEffect(() => {
+    async function fetchCourses() {
+      const { data, error } = await supabase.from('courses').select('*').order('name');
+      if (!error && data) {
+        setCourses(data);
+        if (data.length > 0) {
+          setSelectedCourse(data[0]);
         }
-      } else {
-        fileText = await file.text();
-      }
-      if (!input.trim()) {
-        userMessage = fileText;
-        parts = [{ text: fileText }];
-      } else {
-        userMessage += `\n\nFile Content:\n${fileText}`;
-        parts.push({ text: `File Content:\n${fileText}` });
       }
     }
+    fetchCourses();
+  }, []);
 
-    setChat(prev => [...prev, { role: 'user', content: userMessage }]);
-    setLoading(true);
-
-    try {
-      const response = await axios.post<GeminiResponse>(
-        `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
-        { contents: [{ parts }] }
-      );
-      const botReply = (response.data as GeminiResponse)?.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
-      setChat(prev => [...prev, { role: 'gemini', content: botReply }]);
-    } catch (err: unknown) {
-      let errorMsg = 'An unknown error occurred';
-      if (isGeminiError(err)) {
-        errorMsg = err.response?.data?.error?.message || err.message || errorMsg;
-      } else if (err instanceof Error) {
-        errorMsg = err.message;
+  useEffect(() => {
+    async function fetchLectureNotes(courseId: number) {
+      const listPath = `${courseId}/`;
+      const { data, error } = await supabase.storage.from('lecture-notes').list(listPath);
+      if (error) {
+        setLectureNotes([]);
+        return;
       }
-      setChat(prev => [...prev, { role: 'gemini', content: 'Error: ' + errorMsg }]);
-    } finally {
-      setInput('');
-      setFile(null);
-      setLoading(false);
+      const notes = (data as { id?: string; name: string }[] || []).map((file) => ({
+        id: file.id || file.name,
+        name: file.name,
+        url: supabase.storage.from('lecture-notes').getPublicUrl(`${courseId}/${file.name}`).data.publicUrl
+      }));
+      setLectureNotes(notes);
     }
-  };
+    if (selectedCourse) {
+      fetchLectureNotes(selectedCourse.id);
+    }
+  }, [selectedCourse]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+  async function handleLectureNoteUpload(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!fileInputRef.current?.files?.[0] || !selectedCourse) return;
+    const file = fileInputRef.current.files[0];
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert('User not found');
+      return;
     }
-  };
+    const filePath = `${selectedCourse.id}/${file.name}`;
+    const { error } = await supabase.storage.from('lecture-notes').upload(filePath, file, { upsert: true });
+    if (error) {
+      alert('Upload failed: ' + error.message);
+    } else {
+      const listPath = `${selectedCourse.id}/`;
+      const { data } = await supabase.storage.from('lecture-notes').list(listPath);
+      const notes = (data as { id?: string; name: string }[] || []).map((file) => ({
+        id: file.id || file.name,
+        name: file.name,
+        url: supabase.storage.from('lecture-notes').getPublicUrl(`${selectedCourse.id}/${file.name}`).data.publicUrl
+      }));
+      setLectureNotes(notes);
+      fileInputRef.current.value = '';
+    }
+  }
 
   return (
-    <div className="max-w-xl mx-auto min-h-screen flex flex-col bg-white rounded-2xl shadow-lg p-6 mt-10">
-      <h2 className="text-2xl font-bold text-center mb-4 text-indigo-700">Gemini LLM Chat</h2>
-      <div className="mb-4 flex items-center gap-3">
-        <label className="flex items-center gap-2 cursor-pointer text-gray-700">
-          <span role="img" aria-label="upload">📎</span> Upload File:
-          <input type="file" onChange={handleFileChange} className="hidden" />
-        </label>
-        {file && (
-          <span className="text-sm text-gray-500 truncate max-w-xs">Selected: {file.name}</span>
-        )}
-      </div>
-      <div className="flex-1 overflow-y-auto bg-gray-50 rounded-lg p-4 mb-4 min-h-[250px] max-h-[350px] flex flex-col gap-3">
-        {chat.length === 0 && (
-          <div className="text-gray-400 text-center mt-10">Start the conversation with Gemini!</div>
-        )}
-        {chat.map((msg, idx) => (
-          <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`rounded-xl px-4 py-2 max-w-[80%] shadow ${msg.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-gray-900'}`}>
-              <div className="text-xs font-semibold opacity-70 mb-1">{msg.role === 'user' ? 'You' : 'Gemini'}</div>
-              <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 font-sans">
+      <main className="flex flex-col items-center px-2 pt-8 pb-16">
+        {/* Header */}
+        <header className="w-full max-w-4xl flex flex-col items-center mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="bg-gradient-to-r from-indigo-500 to-blue-500 rounded-full p-2 shadow-lg">
+              <span className="text-white text-2xl font-bold">🧵</span>
             </div>
+            <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-400 tracking-tight drop-shadow-lg text-center animate-fade-in-down">
+              STITCH.G
+            </h1>
           </div>
-        ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="rounded-xl px-4 py-2 bg-indigo-100 text-gray-900 max-w-[80%] shadow">
-              <div className="text-xs font-semibold opacity-70 mb-1">Gemini</div>
-              <div>Typing...</div>
+          <Link href="/mycoursepage" className="mt-4 inline-block px-5 py-2 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-lg shadow-lg hover:from-indigo-600 hover:to-blue-600 transition-transform duration-300 hover:scale-105">
+            My Courses
+          </Link>
+        </header>
+
+        {/* Course Tabs */}
+        <div className="w-full max-w-3xl mb-6">
+          <div className="flex border-b border-gray-200 overflow-x-auto">
+            {courses.map((course: Course) => (
+              <button
+                key={course.id}
+                onClick={() => {
+                  setSelectedCourse(course);
+                }}
+                className={`
+                  px-6 py-3 font-semibold transition-all duration-200
+                  ${selectedCourse?.id === course.id
+                    ? 'border-b-4 border-indigo-500 text-indigo-700 bg-indigo-50 shadow'
+                    : 'text-gray-600 hover:text-indigo-500 hover:bg-gray-100'}
+                  focus:outline-none rounded-t-lg
+                `}
+              >
+                {course.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Course Details & Upload */}
+          <section className="bg-white rounded-xl shadow-lg p-6 flex flex-col gap-4 animate-fade-in-up">
+            <h2 className="text-2xl font-bold text-indigo-700 flex items-center gap-2">
+              <span className="material-icons text-indigo-400">menu_book</span>
+              {selectedCourse?.name}
+            </h2>
+            <div className="text-gray-700">
+              <p><span className="font-semibold">Lecturer:</span> {selectedCourse?.instructor}</p>
+              <p><span className="font-semibold">Semester:</span> {selectedCourse?.semester}</p>
+              <p><span className="font-semibold">Credits:</span> {selectedCourse?.credits}</p>
+              <p><span className="font-semibold">Description:</span> {selectedCourse?.description}</p>
             </div>
-          </div>
-        )}
-      </div>
-      <div className="flex gap-2 mt-auto">
-        <input
-          type="text"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder="Ask Gemini anything..."
-          className="flex-1 px-4 py-2 border border-indigo-200 rounded-lg focus:outline-none focus:border-indigo-500"
-          disabled={loading}
-          onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
-        />
-        <button
-          className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-semibold disabled:bg-indigo-300 transition"
-          onClick={handleSend}
-          disabled={loading || (!input.trim() && !file)}
-        >
-          Send
-        </button>
-      </div>
-      <div className="mt-6 flex justify-center">
-        <Link href="/" className="px-6 py-2 rounded-lg bg-[#eaedf1] hover:bg-[#dce7f3] text-[#101418] font-semibold shadow transition-colors">
-          ← Back to Homepage
-        </Link>
-      </div>
+            {/* Upload */}
+            <form onSubmit={handleLectureNoteUpload} className="flex flex-col sm:flex-row items-center gap-3">
+              <label htmlFor="lecture-note-upload" className="sr-only">Upload lecture note</label>
+              <input
+                id="lecture-note-upload"
+                type="file"
+                ref={fileInputRef}
+                className="block border border-gray-300 rounded px-3 py-2 text-sm"
+                required
+                placeholder="Choose file"
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-lg shadow hover:from-indigo-600 hover:to-blue-600 transition"
+              >
+                Upload Lecture Note
+              </button>
+            </form>
+            {/* Lecture Notes */}
+            <div>
+              <h3 className="text-indigo-600 font-semibold mb-2">Lecture Notes</h3>
+              <ul className="space-y-2">
+                {lectureNotes.length > 0 ? (
+                  lectureNotes.map(note => (
+                    <li key={note.id} className="flex items-center gap-2">
+                      <span className="material-icons text-blue-400">description</span>
+                      <a href={note.url} className="text-blue-600 underline" target="_blank" rel="noopener noreferrer">
+                        {note.name}
+                      </a>
+                    </li>
+                  ))
+                ) : (
+                  <li className="text-gray-400">No notes uploaded yet.</li>
+                )}
+              </ul>
+            </div>
+          </section>
+
+          {/* STITCH.G Chat */}
+          <section className="bg-white rounded-xl shadow-lg p-6 flex flex-col gap-4 animate-fade-in-up">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-full px-3 py-1 font-bold shadow">🧵</span>
+              <h2 className="text-xl font-bold text-indigo-700 tracking-widest">STITCH.G</h2>
+            </div>
+            <LLMChat context={lectureNotes.map(n => n.name).join(' ')} />
+          </section>
+        </div>
+      </main>
     </div>
   );
 };

@@ -6,6 +6,7 @@ import Navbar from "./components/navbar";
 import Link from "next/link";
 import { supabase } from "./lib/supabaseClient";
 import { FileObject } from '@supabase/storage-js';
+import LLMChat from "./components/LLMChat";
 
 interface Course {
   id: number;
@@ -30,9 +31,11 @@ export default function HomePage() {
   const [lectureNotes, setLectureNotes] = useState<LectureNote[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
 
   const fetchCourses = useCallback(async () => {
     const { data, error } = await supabase.from("courses").select("*").order("name");
+    console.log("Fetched courses:", data, "Error:", error);
     if (!error) {
       setCourses(data || []);
       if (data && data.length > 0 && activeCourseId === null) {
@@ -98,7 +101,7 @@ export default function HomePage() {
       setUploading(false);
       return;
     }
-    const filePath = `${user.id}/${file.name}`;
+    const filePath = `${activeCourseId}/${file.name}`;
     const { error } = await supabase.storage.from('lecture-notes').upload(filePath, file, { upsert: true });
     setUploading(false);
     if (error) {
@@ -122,21 +125,37 @@ export default function HomePage() {
           </Link>
         </header>
 
-        {/* Course List */}
-        <div className="flex w-full overflow-x-auto border-b border-indigo-200 mb-6">
-          {courses.map(course => (
-            <button
-              key={course.id}
-              className={`px-4 py-2 -mb-px font-semibold whitespace-nowrap border-b-2 transition-all duration-300
-                ${activeCourseId === course.id
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-gray-700 hover:text-indigo-500 hover:border-indigo-300'
-                }`}
-              onClick={() => setActiveCourseId(course.id)}
-            >
-              {course.name}
-            </button>
-          ))}
+        <div className="w-full max-w-3xl mx-auto mt-8">
+          <div className="flex border-b border-gray-200">
+            {courses.map((course) => (
+              <button
+                key={course.id}
+                onClick={() => {
+                  setSelectedCourse(course);
+                  setActiveCourseId(course.id);
+                }}
+                className={`
+                  px-6 py-3 font-semibold transition
+                  ${selectedCourse?.id === course.id
+                    ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50'
+                    : 'text-gray-600 hover:text-blue-500 hover:bg-gray-100'}
+                  focus:outline-none
+                `}
+              >
+                {course.name}
+              </button>
+            ))}
+          </div>
+          <div className="p-6 bg-white rounded-b-lg shadow">
+            {/* Show course details/notes here */}
+            <h2 className="text-xl font-bold mb-2">{selectedCourse?.name}</h2>
+            <p className="text-gray-700 mb-4">{selectedCourse?.code}</p>
+            <p className="text-gray-500">{selectedCourse?.instructor}</p>
+            <p className="text-gray-500">{selectedCourse?.semester}</p>
+            <p className="text-gray-500">{selectedCourse?.credits}</p>
+            <p className="text-gray-600">{selectedCourse?.description}</p>
+            {/* Add more interactive content here */}
+          </div>
         </div>
 
         {/* Active Course Details & Lecture Notes */}
@@ -144,10 +163,10 @@ export default function HomePage() {
           <section className="mb-10 animate-fade-in-up">
             <div className="mb-8">
               <h2 className="text-2xl font-bold mb-2 text-indigo-700 animate-fade-in-down">{activeCourse.name}</h2>
-              <p className="mb-1 text-gray-700"><strong>Lecturer:</strong> {activeCourse.instructor}</p>
-              <p className="mb-1 text-gray-700"><strong>Semester:</strong> {activeCourse.semester}</p>
-              <p className="mb-1 text-gray-700"><strong>Credits:</strong> {activeCourse.credits}</p>
-              <p className="mb-4 text-gray-600"><strong>Description:</strong> {activeCourse.description}</p>
+              <p className="mb-1 text-gray-700"><span className="font-bold">Lecturer:</span> {activeCourse.instructor}</p>
+              <p className="mb-1 text-gray-700"><span className="font-bold">Semester:</span> {activeCourse.semester}</p>
+              <p className="mb-1 text-gray-700"><span className="font-bold">Credits:</span> {activeCourse.credits}</p>
+              <p className="mb-4 text-gray-600"><span className="font-bold">Description:</span> {activeCourse.description}</p>
 
               {/* Upload Lecture Note */}
               <form onSubmit={handleLectureNoteUpload} className="flex flex-col sm:flex-row items-center gap-3 mb-6 animate-fade-in-up">
@@ -186,10 +205,9 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* LLM/Chat Placeholder */}
-            <div className="p-6 bg-gradient-to-r from-indigo-100 to-blue-100 rounded-2xl shadow text-center animate-fade-in-up mt-6">
-              <h3 className="text-lg font-bold mb-2 text-indigo-700">LLM Chat (Coming Soon)</h3>
-              <p className="text-gray-600">This area will allow you to interact with the LLM using the uploaded lecture notes for this course.</p>
+            {/* LLM Chat Section */}
+            <div className="mt-8">
+              <LLMChat context={lectureNotes.map(note => `${note.name}: ${note.url}`).join("\n")} />
             </div>
           </section>
         )}

@@ -2,8 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import styles from './mycoursepage.module.css';
-import { supabase } from '../lib/supabaseClient'; // Use the singleton!
+import { supabase } from '../lib/supabaseClient';
 
 export type Course = {
   id: number;
@@ -15,12 +14,10 @@ export type Course = {
   description: string;
 };
 
-// If you have a created_at column, you can use the order line below. Otherwise, remove it.
 async function fetchCourses(): Promise<Course[]> {
   const { data, error } = await supabase
     .from('courses')
     .select('*');
-    // .order('created_at', { ascending: false }); // Only use if your table has this column
   if (error) {
     console.error('Error fetching courses:', error.message);
     return [];
@@ -43,40 +40,42 @@ export default function Mycoursespage() {
   }, []);
 
   return (
-    <div className={styles.pageBg}>
-      <div className={styles.container}>
-        <h1 className={`${styles.heading} animate-fade-in-down`}>My Courses</h1>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 py-8 px-2 font-sans">
+      <div className="max-w-5xl mx-auto">
+        {/* Modern Interactive Title */}
+        <h1 className="text-4xl md:text-5xl font-extrabold text-indigo-700 mb-8 text-center tracking-tight drop-shadow-lg animate-fade-in-down">
+          <span className="inline-block bg-gradient-to-r from-indigo-500 to-blue-400 text-transparent bg-clip-text">My Courses</span>
+        </h1>
 
         {loading ? (
-          <div className={`${styles.loading} animate-fade-in-up`}>
-            Loading courses...
-          </div>
+          <div className="text-center text-lg text-indigo-500 animate-fade-in-up py-20">Loading courses...</div>
         ) : courses.length === 0 ? (
-          <div className={`${styles.noCourses} animate-fade-in-up`}>
-            <p className={styles.noCoursesText}>You have no courses yet.</p>
+          <div className="flex flex-col items-center justify-center mt-16 animate-fade-in-up">
+            <p className="text-xl text-indigo-400 mb-2">You have no courses yet.</p>
+            <Link href="/add-course">
+              <button className="mt-2 px-6 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-blue-500 text-white font-semibold shadow hover:from-indigo-600 hover:to-blue-600 transition-transform duration-300 hover:scale-105">
+                Add a Course
+              </button>
+            </Link>
           </div>
         ) : (
-          <div className={styles.grid}>
-            {courses.map((course, idx) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in-up">
+            {courses.map((course) => (
               <div
                 key={course.id}
-                className={`${styles.card} animate-fade-in-up ${styles['delay' + (idx > 9 ? 9 : idx)]}`}
+                className="bg-white rounded-2xl shadow-lg p-6 flex flex-col justify-between transition-transform duration-300 hover:scale-105 hover:shadow-2xl group border border-transparent hover:border-indigo-300"
               >
-                <div className={styles.cardContent}>
-                  <div className={styles.cardHeader}>
-                    <span className={styles.courseCode}>{course.code}</span>
-                    <span className={styles.semester}>{course.semester}</span>
-                  </div>
-                  <h2 className={styles.cardTitle}>{course.name}</h2>
-                  <div className={styles.instructor}>Instructor: {course.instructor}</div>
-                  <div className={styles.credits}>
-                    <span>Credits: {course.credits}</span>
-                  </div>
-                  <p className={styles.description}>{course.description}</p>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold tracking-wide">{course.code}</span>
+                  <span className="text-xs text-gray-400">{course.semester}</span>
                 </div>
-                <div className={styles.cardFooter}>
+                <h2 className="text-2xl font-bold text-indigo-800 mb-1 group-hover:text-blue-600 transition-colors duration-200">{course.name}</h2>
+                <div className="text-indigo-500 font-semibold mb-1">Instructor: {course.instructor}</div>
+                <div className="text-gray-500 mb-1">Credits: <span className="font-bold">{course.credits}</span></div>
+                <p className="text-gray-700 mb-4">{course.description}</p>
+                <div className="flex justify-end">
                   <Link href={`/courses/${course.id}`}>
-                    <button className={styles.viewBtn}>
+                    <button className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-400 to-indigo-500 text-white font-semibold shadow hover:from-blue-500 hover:to-indigo-600 transition-transform duration-200 hover:scale-105">
                       View Course
                     </button>
                   </Link>
@@ -86,18 +85,16 @@ export default function Mycoursespage() {
           </div>
         )}
 
-        <div className={`${styles.backBtnContainer} animate-fade-in-up`}>
+        <div className="flex justify-center mt-12 animate-fade-in-up">
           <Link href="/">
-            <button className={styles.backBtn}>
+            <button className="px-6 py-2 rounded-lg bg-gray-200 text-gray-700 font-semibold shadow hover:bg-gray-300 transition-transform duration-200 hover:scale-105">
               ← Back to Homepage
             </button>
           </Link>
         </div>
       </div>
-      {/* Global animation styles */}
+      {/* Animations */}
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap');
-        .font-sora { font-family: 'Sora', sans-serif; }
         @keyframes fade-in-down {
           from { opacity: 0; transform: translateY(-40px); }
           to { opacity: 1; transform: translateY(0); }
