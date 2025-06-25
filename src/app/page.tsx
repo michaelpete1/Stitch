@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "./components/navbar";
 import Link from "next/link";
 import { supabase } from "./lib/supabaseClient";
+import { FileObject } from '@supabase/storage-js';
 
 interface Course {
   id: number;
@@ -16,12 +17,32 @@ interface Course {
   description: string;
 }
 
+interface LectureNote {
+  id: string;
+  name: string;
+  url: string;
+}
+
 export default function HomePage() {
   const router = useRouter();
-  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeCourseId, setActiveCourseId] = useState<number | null>(null);
+  const [lectureNotes, setLectureNotes] = useState<LectureNote[]>([]);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchCourses = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from("courses").select("*").order("name");
+    if (!error) {
+      setCourses(data || []);
+      if (data && data.length > 0 && activeCourseId === null) {
+        setActiveCourseId(data[0].id);
+      }
+    } else console.error(error);
+    setLoading(false);
+  }, [activeCourseId]);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -43,126 +64,157 @@ export default function HomePage() {
     };
 
     checkSession();
-  }, [router]);
+  }, [router, fetchCourses]);
 
-  async function fetchCourses() {
-    setLoading(true);
-    const { data, error } = await supabase.from("courses").select("*").order("name");
-    if (!error) setCourses(data || []);
-    else console.error(error);
-    setLoading(false);
+  // Fetch lecture notes for the active course
+  useEffect(() => {
+    if (activeCourseId) {
+      fetchLectureNotes(activeCourseId);
+    } else {
+      setLectureNotes([]);
+    }
+  }, [activeCourseId]);
+
+  async function fetchLectureNotes(courseId: number) {
+    // List files in the lecture-notes bucket for this course
+    const { data, error } = await supabase.storage.from('lecture-notes').list(`${courseId}/`);
+    if (error) {
+      setLectureNotes([]);
+      return;
+    }
+    const notes = (data as FileObject[] || []).map((file) => ({
+      id: file.id || file.name,
+      name: file.name,
+      url: supabase.storage.from('lecture-notes').getPublicUrl(`${courseId}/${file.name}`).data.publicUrl
+    }));
+    setLectureNotes(notes);
   }
 
-  function handleBrowseFilesClick() {
-    fileInputRef.current?.click();
+  async function handleLectureNoteUpload(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!fileInputRef.current?.files?.[0] || !activeCourseId) return;
+    setUploading(true);
+    const file = fileInputRef.current.files[0];
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert('User not found');
+      setUploading(false);
+      return;
+    }
+    const filePath = `${user.id}/${file.name}`;
+    const { error } = await supabase.storage.from('lecture-notes').upload(filePath, file, { upsert: true });
+    setUploading(false);
+    if (error) {
+      alert('Upload failed: ' + error.message);
+    } else {
+      fetchLectureNotes(activeCourseId);
+      fileInputRef.current.value = '';
+    }
   }
 
-  function handleFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setSelectedFiles(e.target.files);
-  }
+  const activeCourse = courses.find(c => c.id === activeCourseId);
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-gray-100 font-sans">
       <Navbar />
       <main className="flex-1 flex flex-col overflow-y-auto p-6 pt-16 md:pt-6">
-        <header className="flex items-center justify-between mb-6">
-          <h1 className="text-4xl font-extrabold text-gray-800">Dashboard</h1>
-          <Link href="/mycoursepage" className="inline-block px-5 py-2 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition">
+        <header className="flex items-center justify-between mb-8 animate-fade-in-down">
+          <h1 className="text-4xl font-extrabold text-indigo-700 tracking-tight drop-shadow-lg animate-fade-in-down">Course Center</h1>
+          <Link href="/mycoursepage" className="inline-block px-5 py-2 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-lg shadow-lg hover:from-indigo-600 hover:to-blue-600 transition-transform duration-300 hover:scale-105">
             My Courses
           </Link>
         </header>
 
-        <nav className="mb-6">
-          <div className="flex space-x-4 overflow-x-auto">
-            {loading ? (
-              <span className="text-gray-500">Loading...</span>
-            ) : courses.length ? (
-              courses.map(course => (
+        {/* Course List */}
+        <div className="flex w-full overflow-x-auto border-b border-indigo-200 mb-6">
+          {courses.map(course => (
+            <button
+              key={course.id}
+              className={`px-4 py-2 -mb-px font-semibold whitespace-nowrap border-b-2 transition-all duration-300
+                ${activeCourseId === course.id
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-gray-700 hover:text-indigo-500 hover:border-indigo-300'
+                }`}
+              onClick={() => setActiveCourseId(course.id)}
+            >
+              {course.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Active Course Details & Lecture Notes */}
+        {activeCourse && (
+          <section className="mb-10 animate-fade-in-up">
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold mb-2 text-indigo-700 animate-fade-in-down">{activeCourse.name}</h2>
+              <p className="mb-1 text-gray-700"><strong>Lecturer:</strong> {activeCourse.instructor}</p>
+              <p className="mb-1 text-gray-700"><strong>Semester:</strong> {activeCourse.semester}</p>
+              <p className="mb-1 text-gray-700"><strong>Credits:</strong> {activeCourse.credits}</p>
+              <p className="mb-4 text-gray-600"><strong>Description:</strong> {activeCourse.description}</p>
+
+              {/* Upload Lecture Note */}
+              <form onSubmit={handleLectureNoteUpload} className="flex flex-col sm:flex-row items-center gap-3 mb-6 animate-fade-in-up">
+                <label className="sr-only" htmlFor="lecture-note-upload">Upload lecture note</label>
+                <input
+                  id="lecture-note-upload"
+                  type="file"
+                  ref={fileInputRef}
+                  className="block border border-gray-300 rounded px-3 py-2 text-sm"
+                  required
+                  accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.md,.rtf,.odt,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.gif,.bmp,.svg,.webp,.zip,.rar,.7z,.tar,.gz,.mp3,.mp4,.wav,.avi,.mov,.mkv,.json,.xml,.html,.js,.ts,.tsx,.py,.java,.c,.cpp,.cs,.rb,.go,.php,.sh,.bat,.ps1"
+                />
                 <button
-                  key={course.id}
-                  className="px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-indigo-50 transition whitespace-nowrap"
+                  type="submit"
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-lg shadow hover:from-indigo-600 hover:to-blue-600 transition-transform duration-300 hover:scale-105"
+                  disabled={uploading}
                 >
-                  {course.name}
+                  {uploading ? 'Uploading...' : 'Upload Lecture Note'}
                 </button>
-              ))
-            ) : (
-              <span className="text-gray-500">No courses available</span>
-            )}
-          </div>
-        </nav>
+              </form>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {loading ? (
-            <div className="col-span-full text-center py-10 text-gray-500">Loading courses...</div>
-          ) : courses.length ? (
-            courses.map(course => (
-              <div
-                key={course.id}
-                className="bg-white rounded-2xl shadow-md p-6 flex flex-col justify-between hover:shadow-lg transition"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">
-                      {course.code}
-                    </span>
-                    <span className="text-xs text-gray-500">{course.semester}</span>
-                  </div>
-                  <h2 className="text-2xl font-semibold text-gray-800 mb-2">{course.name}</h2>
-                  <p className="text-gray-600 mb-3">Instructor: {course.instructor}</p>
-                  <p className="text-gray-600 text-sm mb-4">{course.description}</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-500">Credits: <strong>{course.credits}</strong></span>
-                  <Link href={`/courses/${course.id}`} className="text-indigo-600 font-semibold hover:underline">
-                    View Course →
-                  </Link>
-                </div>
+              {/* List of Lecture Notes */}
+              <div>
+                <h3 className="font-semibold mb-2 text-indigo-700 animate-fade-in-down">Lecture Notes</h3>
+                {lectureNotes.length === 0 ? (
+                  <p className="text-gray-500">No lecture notes uploaded yet.</p>
+                ) : (
+                  <ul className="list-disc list-inside">
+                    {lectureNotes.map(note => (
+                      <li key={note.id} className="transition-all duration-300 hover:scale-105">
+                        <a href={note.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{note.name}</a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-            ))
-          ) : (
-            <div className="col-span-full text-center py-10 text-gray-500">No courses to display.</div>
-          )}
-        </section>
-
-        <section className="mt-10">
-          <div className="max-w-lg mx-auto bg-white p-8 rounded-2xl shadow-md">
-            <h3 className="text-2xl font-bold text-gray-800 mb-4">Upload Course Content</h3>
-            <p className="text-gray-600 mb-6">Drag & drop or click browse to upload files.</p>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-              <button
-                onClick={handleBrowseFilesClick}
-                className="px-6 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition"
-                title="Browse files"
-              >
-                Browse Files
-              </button>
-              <label htmlFor="fileUploader" className="sr-only">Select course files</label>
-              <input
-                id="fileUploader"
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleFilesChange}
-                title="Select files"
-              />
-              {selectedFiles && (
-                <ul className="mt-4 text-gray-700 list-disc list-inside text-left">
-                  {Array.from(selectedFiles).map(file => (
-                    <li key={file.name}>{file.name}</li>
-                  ))}
-                </ul>
-              )}
             </div>
-          </div>
-        </section>
 
-        <section className="mt-10 text-center">
-          <Link href="/llm" className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-            Open LLM Chat
-          </Link>
-        </section>
+            {/* LLM/Chat Placeholder */}
+            <div className="p-6 bg-gradient-to-r from-indigo-100 to-blue-100 rounded-2xl shadow text-center animate-fade-in-up mt-6">
+              <h3 className="text-lg font-bold mb-2 text-indigo-700">LLM Chat (Coming Soon)</h3>
+              <p className="text-gray-600">This area will allow you to interact with the LLM using the uploaded lecture notes for this course.</p>
+            </div>
+          </section>
+        )}
       </main>
+
+      <style jsx global>{`
+        @keyframes fade-in-down {
+          0% { opacity: 0; transform: translateY(-20px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-down {
+          animation: fade-in-down 0.7s cubic-bezier(0.4,0,0.2,1) both;
+        }
+        @keyframes fade-in-up {
+          0% { opacity: 0; transform: translateY(40px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up {
+          animation: fade-in-up 0.7s cubic-bezier(0.4,0,0.2,1) both;
+        }
+      `}</style>
     </div>
   );
 }
+

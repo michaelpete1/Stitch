@@ -60,7 +60,7 @@ export default function Navbar() {
       onClick: async () => {
         await supabase.auth.signOut();
         setOpen(false);
-        router.push('/signuppage'); // ✅ Redirect after logout
+        router.push('/signuppage');
       }
     }
   ];
@@ -81,9 +81,10 @@ export default function Navbar() {
       {/* Mobile menu button */}
       <button
         type="button"
-        className="fixed top-4 left-4 z-50 flex items-center justify-center w-10 h-10 md:hidden bg-white rounded-full shadow-md focus:outline-none"
+        className="fixed top-4 left-4 z-50 flex items-center justify-center w-10 h-10 md:hidden bg-white rounded-full shadow-md focus:outline-none transition-transform duration-300 hover:scale-110 active:scale-95"
         onClick={() => setOpen(v => !v)}
         title={open ? 'Close menu' : 'Open menu'}
+        aria-label={open ? 'Close menu' : 'Open menu'}
       >
         <span className="sr-only">{open ? 'Close menu' : 'Open menu'}</span>
         {open ? <CloseIcon size={24} /> : <MenuIcon size={24} />}
@@ -99,9 +100,9 @@ export default function Navbar() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-screen w-64 bg-white border-r flex flex-col py-4 px-4 shadow-lg transition-transform duration-300 md:static md:translate-x-0 md:shadow-none ${
+        className={`fixed top-0 left-0 z-50 h-screen w-64 bg-white border-r flex flex-col py-4 px-4 shadow-lg transition-transform duration-500 ease-in-out md:static md:translate-x-0 md:shadow-none ${
           open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        }`}
+        } rounded-r-2xl md:rounded-none`}
       >
         {user && (
           <div className="flex items-center gap-3 mb-8 animate-fade-in-down">
@@ -110,12 +111,12 @@ export default function Navbar() {
               alt={`${displayName} avatar`}
               width={40}
               height={40}
-              className="rounded-full object-cover"
+              className="rounded-full object-cover border-2 border-indigo-200 shadow"
             />
             <Link
               href="/"
               onClick={() => setOpen(false)}
-              className="text-lg font-medium text-[#101418] hover:underline focus:outline-none"
+              className="text-lg font-medium text-[#101418] hover:underline focus:outline-none transition-colors"
             >
               {displayName}
             </Link>
@@ -131,7 +132,7 @@ export default function Navbar() {
                   key={link.label}
                   type="button"
                   onClick={link.onClick}
-                  className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-[#f1f4f9] text-[#101418]"
+                  className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-indigo-100 text-[#101418] transition-transform duration-200 hover:scale-105 active:scale-95 focus:ring-2 focus:ring-indigo-300"
                 >
                   {link.icon}
                   <span>{link.label}</span>
@@ -141,7 +142,7 @@ export default function Navbar() {
                   key={link.href}
                   href={link.href}
                   onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-[#f1f4f9] text-[#101418]"
+                  className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-indigo-100 text-[#101418] transition-transform duration-200 hover:scale-105 active:scale-95 focus:ring-2 focus:ring-indigo-300"
                 >
                   {link.icon}
                   <span>{link.label}</span>
