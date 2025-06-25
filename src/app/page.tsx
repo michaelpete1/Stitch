@@ -26,14 +26,12 @@ interface LectureNote {
 export default function HomePage() {
   const router = useRouter();
   const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
   const [activeCourseId, setActiveCourseId] = useState<number | null>(null);
   const [lectureNotes, setLectureNotes] = useState<LectureNote[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchCourses = useCallback(async () => {
-    setLoading(true);
     const { data, error } = await supabase.from("courses").select("*").order("name");
     if (!error) {
       setCourses(data || []);
@@ -41,7 +39,6 @@ export default function HomePage() {
         setActiveCourseId(data[0].id);
       }
     } else console.error(error);
-    setLoading(false);
   }, [activeCourseId]);
 
   useEffect(() => {
