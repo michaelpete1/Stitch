@@ -1,3 +1,6 @@
+// Text extraction from PDF/DOCX must be done server-side due to Node.js-only dependencies (e.g., pdf-parse uses 'fs').
+// Move extraction logic to a Next.js API route and call it from the client.
+
 import mammoth from "mammoth";
 import pdfParse from "pdf-parse";
 

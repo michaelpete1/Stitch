@@ -6,7 +6,14 @@ const nextConfig = {
     // Add any other origins you use for development here
   ],
   images: {
-    domains: ['randomuser.me'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'randomuser.me',
+        port: '',
+        pathname: '/**',
+      },
+    ],
   },
 }
 

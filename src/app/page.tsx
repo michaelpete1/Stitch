@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "./components/navbar";
 import Link from "next/link";
 import { supabase } from "./lib/supabaseClient";
 import { FileObject } from '@supabase/storage-js';
 import LLMChat from "./components/LLMChat";
+import { deleteCourse, deleteLectureNote } from "./utils/courseApi";
+import toast, { Toaster } from 'react-hot-toast';
 
 interface Course {
   id: number;
@@ -26,6 +28,8 @@ interface LectureNote {
 
 export default function HomePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const courseIdFromQuery = searchParams.get("course");
   const [courses, setCourses] = useState<Course[]>([]);
   const [activeCourseId, setActiveCourseId] = useState<number | null>(null);
   const [lectureNotes, setLectureNotes] = useState<LectureNote[]>([]);
@@ -34,7 +38,16 @@ export default function HomePage() {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
 
   const fetchCourses = useCallback(async () => {
-    const { data, error } = await supabase.from("courses").select("*").order("name");
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setCourses([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("courses")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("name");
     console.log("Fetched courses:", data, "Error:", error);
     if (!error) {
       setCourses(data || []);
@@ -66,18 +79,25 @@ export default function HomePage() {
     checkSession();
   }, [router, fetchCourses]);
 
-  // Fetch lecture notes for the active course
   useEffect(() => {
-    if (activeCourseId) {
-      fetchLectureNotes(activeCourseId);
-    } else {
-      setLectureNotes([]);
+    if (courses.length > 0 && courseIdFromQuery) {
+      const id = parseInt(courseIdFromQuery, 10);
+      const found = courses.find(c => c.id === id);
+      if (found) {
+        setActiveCourseId(found.id);
+        setSelectedCourse(found);
+      }
     }
-  }, [activeCourseId]);
+  }, [courses, courseIdFromQuery]);
 
-  async function fetchLectureNotes(courseId: number) {
-    // List files in the lecture-notes bucket for this course
-    const { data, error } = await supabase.storage.from('lecture-notes').list(`${courseId}/`);
+  // Fetch lecture notes for the active course
+  const fetchLectureNotes = useCallback(async (courseId: number) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setLectureNotes([]);
+      return;
+    }
+    const { data, error } = await supabase.storage.from('lecture-notes').list(`${user.id}/${courseId}/`);
     if (error) {
       setLectureNotes([]);
       return;
@@ -85,10 +105,18 @@ export default function HomePage() {
     const notes = (data as FileObject[] || []).map((file) => ({
       id: file.id || file.name,
       name: file.name,
-      url: supabase.storage.from('lecture-notes').getPublicUrl(`${courseId}/${file.name}`).data.publicUrl
+      url: supabase.storage.from('lecture-notes').getPublicUrl(`${user.id}/${courseId}/${file.name}`).data.publicUrl
     }));
     setLectureNotes(notes);
-  }
+  }, []);
+
+  useEffect(() => {
+    if (activeCourseId) {
+      fetchLectureNotes(activeCourseId);
+    } else {
+      setLectureNotes([]);
+    }
+  }, [activeCourseId, fetchLectureNotes]);
 
   async function handleLectureNoteUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -101,21 +129,23 @@ export default function HomePage() {
       setUploading(false);
       return;
     }
-    const filePath = `${activeCourseId}/${file.name}`;
+    const filePath = `${user.id}/${activeCourseId}/${file.name}`;
+    console.log('Uploading:', { filePath, file, user });
     const { error } = await supabase.storage.from('lecture-notes').upload(filePath, file, { upsert: true });
-    setUploading(false);
-    if (error) {
-      alert('Upload failed: ' + error.message);
-    } else {
+    if (!error) {
       fetchLectureNotes(activeCourseId);
       fileInputRef.current.value = '';
+    } else {
+      alert('Upload failed: ' + error.message);
     }
+    setUploading(false);
   }
 
   const activeCourse = courses.find(c => c.id === activeCourseId);
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-gray-100 font-sans">
+      <Toaster position="top-right" />
       <Navbar />
       <main className="flex-1 flex flex-col overflow-y-auto p-4 pt-16 md:pt-6">
         <header className="flex flex-col sm:flex-row items-center justify-between mb-8 animate-fade-in-down gap-4">
@@ -128,22 +158,45 @@ export default function HomePage() {
         <div className="w-full max-w-3xl mx-auto mt-4 px-2 sm:px-4">
           <div className="flex border-b border-gray-200 overflow-x-auto no-scrollbar whitespace-nowrap">
             {courses.map((course) => (
-              <button
+              <div
                 key={course.id}
-                onClick={() => {
-                  setSelectedCourse(course);
-                  setActiveCourseId(course.id);
-                }}
                 className={`
                   px-4 sm:px-6 py-2 sm:py-3 min-w-[120px] sm:min-w-[160px] text-sm sm:text-base font-semibold transition
                   ${selectedCourse?.id === course.id
                     ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50'
                     : 'text-gray-600 hover:text-blue-500 hover:bg-gray-100'}
                   focus:outline-none
+                  flex items-center justify-between
                 `}
               >
-                {course.name}
-              </button>
+                <span
+                  className="flex-1 cursor-pointer"
+                  onClick={() => {
+                    setSelectedCourse(course);
+                    setActiveCourseId(course.id);
+                  }}
+                >
+                  {course.name}
+                </span>
+                <button
+                  className="ml-2 text-red-500 hover:text-red-700"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const toastId = toast.loading('Deleting course...');
+                    try {
+                      await deleteCourse(course.id);
+                      setCourses(courses.filter(c => c.id !== course.id));
+                      setSelectedCourse(null);
+                      setActiveCourseId(null);
+                      toast.success('Course deleted!', { id: toastId });
+                    } catch (err: unknown) {
+                      let message = 'Delete failed.';
+                      if (err instanceof Error) message = 'Delete failed: ' + err.message;
+                      toast.error(message, { id: toastId });
+                    }
+                  }}
+                >Delete</button>
+              </div>
             ))}
           </div>
           <div className="p-4 sm:p-6 bg-white rounded-b-lg shadow">
@@ -198,6 +251,23 @@ export default function HomePage() {
                     {lectureNotes.map(note => (
                       <li key={note.id} className="transition-all duration-300 hover:scale-105">
                         <a href={note.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{note.name}</a>
+                        <button
+                          className="ml-2 text-red-500 hover:text-red-700"
+                          onClick={async () => {
+                            if (activeCourseId !== null) {
+                              const toastId = toast.loading('Deleting file...');
+                              try {
+                                await deleteLectureNote(activeCourseId, note.name);
+                                setLectureNotes(lectureNotes.filter(n => n.id !== note.id));
+                                toast.success('File deleted!', { id: toastId });
+                              } catch (err: unknown) {
+                                let message = 'Delete failed.';
+                                if (err instanceof Error) message = 'Delete failed: ' + err.message;
+                                toast.error(message, { id: toastId });
+                              }
+                            }
+                          }}
+                        >Delete</button>
                       </li>
                     ))}
                   </ul>

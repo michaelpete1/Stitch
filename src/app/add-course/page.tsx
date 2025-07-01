@@ -29,6 +29,12 @@ export default function AddCoursePage() {
       return;
     }
     const { name, code, instructor, semester, description } = form;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError("User not authenticated.");
+      setLoading(false);
+      return;
+    }
     const { error } = await supabase.from("courses").insert([
       {
         name,
@@ -37,6 +43,7 @@ export default function AddCoursePage() {
         semester,
         credits: creditsNumber,
         description,
+        user_id: user.id,
       },
     ]);
     setLoading(false);

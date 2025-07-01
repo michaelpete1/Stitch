@@ -15,9 +15,12 @@ export type Course = {
 };
 
 async function fetchCourses(): Promise<Course[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
   const { data, error } = await supabase
     .from('courses')
-    .select('*');
+    .select('*')
+    .eq('user_id', user.id);
   if (error) {
     console.error('Error fetching courses:', error.message);
     return [];
@@ -74,7 +77,7 @@ export default function Mycoursespage() {
                 <div className="text-gray-500 mb-1">Credits: <span className="font-bold">{course.credits}</span></div>
                 <p className="text-gray-700 mb-4">{course.description}</p>
                 <div className="flex justify-end">
-                  <Link href={`/courses/${course.id}`}>
+                  <Link href={`/?course=${course.id}`}>
                     <button className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-400 to-indigo-500 text-white font-semibold shadow hover:from-blue-500 hover:to-indigo-600 transition-transform duration-200 hover:scale-105">
                       View Course
                     </button>
