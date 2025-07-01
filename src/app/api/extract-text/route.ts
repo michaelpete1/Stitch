@@ -22,7 +22,6 @@ export async function POST(req: NextRequest) {
       text = value;
     } else if (ext === 'pdf') {
       const arrayBuffer = await file.arrayBuffer();
-      // @ts-ignore
       const buffer = Buffer.from(arrayBuffer);
       const data = await pdfParse(buffer);
       text = data.text;
@@ -31,7 +30,7 @@ export async function POST(req: NextRequest) {
     } else {
       return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 });
     }
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Failed to extract text' }, { status: 500 });
   }
 
