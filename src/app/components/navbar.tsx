@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { User } from '@supabase/supabase-js';
 import {
   Plus,
@@ -27,6 +27,7 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     async function getSession() {
@@ -76,6 +77,8 @@ export default function Navbar() {
     user?.user_metadata?.picture ||
     'https://randomuser.me/api/portraits/lego/1.jpg';
 
+  const userEmoji = user?.user_metadata?.emoji || '👤';
+
   return (
     <>
       {/* Mobile menu button */}
@@ -90,7 +93,7 @@ export default function Navbar() {
         {open ? <CloseIcon size={24} /> : <MenuIcon size={24} />}
       </button>
 
-      {/* Backdrop */}
+      {/* Backdrop for mobile */}
       <div
         className={`fixed inset-0 bg-black/40 z-30 transition-opacity duration-300 md:hidden ${
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -100,19 +103,25 @@ export default function Navbar() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-screen w-64 bg-white border-r flex flex-col py-4 px-4 shadow-lg transition-transform duration-500 ease-in-out md:static md:translate-x-0 md:shadow-none ${
+        className={`fixed top-0 left-0 z-50 h-screen w-56 bg-gradient-to-b from-indigo-100 via-white to-blue-100 border-r flex flex-col py-6 px-4 shadow-xl transition-transform duration-500 ease-in-out md:static md:translate-x-0 md:shadow-xl md:block ${
           open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         } rounded-r-2xl md:rounded-none`}
       >
+        {/* Branding section */}
+        <div className="flex items-center gap-3 mb-8 animate-fade-in-down">
+          <Image
+            src="/vercel.svg"
+            alt="App Logo"
+            width={36}
+            height={36}
+            className="rounded-full object-cover border-2 border-indigo-200 shadow"
+          />
+          <span className="text-xl font-bold text-indigo-700 tracking-tight select-none">Stitch</span>
+        </div>
+        <hr className="mb-6 border-indigo-200" />
         {user && (
           <div className="flex items-center gap-3 mb-8 animate-fade-in-down">
-            <Image
-              src={avatarUrl}
-              alt={`${displayName} avatar`}
-              width={40}
-              height={40}
-              className="rounded-full object-cover border-2 border-indigo-200 shadow"
-            />
+            <span className="text-4xl select-none" role="img" aria-label="Profile Emoji">{userEmoji}</span>
             <Link
               href="/"
               onClick={() => setOpen(false)}
@@ -122,17 +131,19 @@ export default function Navbar() {
             </Link>
           </div>
         )}
-
         <nav className="flex flex-col gap-2 mt-2">
           {[...navLinks, ...unauthLinks, ...authLinks]
             .filter(link => link.show)
-            .map(link =>
-              link.onClick ? (
+            .map(link => {
+              const isActive = link.href !== '#' && pathname === link.href;
+              return link.onClick ? (
                 <button
                   key={link.label}
                   type="button"
                   onClick={link.onClick}
-                  className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-indigo-100 text-[#101418] transition-transform duration-200 hover:scale-105 active:scale-95 focus:ring-2 focus:ring-indigo-300"
+                  className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200 font-medium focus:ring-2 focus:ring-indigo-300 shadow-sm
+                    ${isActive ? 'bg-indigo-200 text-indigo-900' : 'hover:bg-indigo-100 text-[#101418]'}
+                  `}
                 >
                   {link.icon}
                   <span>{link.label}</span>
@@ -142,13 +153,15 @@ export default function Navbar() {
                   key={link.href}
                   href={link.href}
                   onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-indigo-100 text-[#101418] transition-transform duration-200 hover:scale-105 active:scale-95 focus:ring-2 focus:ring-indigo-300"
+                  className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200 font-medium focus:ring-2 focus:ring-indigo-300 shadow-sm
+                    ${isActive ? 'bg-indigo-200 text-indigo-900' : 'hover:bg-indigo-100 text-[#101418]'}
+                  `}
                 >
                   {link.icon}
                   <span>{link.label}</span>
                 </Link>
-              )
-            )}
+              );
+            })}
         </nav>
       </aside>
 

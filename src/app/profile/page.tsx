@@ -14,6 +14,10 @@ export default function ProfilePage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showGenderOptions, setShowGenderOptions] = useState(false);
+  const [gender, setGender] = useState<string | null>(null);
+
+  const emojiOptions = ['👨', '👩'];
 
   useEffect(() => {
     const getUser = async () => {
@@ -25,6 +29,7 @@ export default function ProfilePage() {
         data.user?.email?.split('@')[0] ||
         ''
       );
+      setGender(data.user?.user_metadata?.gender || null);
     };
     getUser();
 
@@ -36,6 +41,7 @@ export default function ProfilePage() {
         session?.user?.email?.split('@')[0] ||
         ''
       );
+      setGender(session?.user?.user_metadata?.gender || null);
     });
 
     return () => {
@@ -53,10 +59,7 @@ export default function ProfilePage() {
     user?.user_metadata?.bio ||
     'Student';
 
-  const avatarUrl =
-    user?.user_metadata?.avatar_url ||
-    user?.user_metadata?.picture ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=667eea&color=fff&size=128`;
+  const userEmoji = user?.user_metadata?.emoji || '👤';
 
   const email = user?.email || '';
 
@@ -83,46 +86,27 @@ export default function ProfilePage() {
     setSaving(false);
   }
 
-  // Add this function for avatar upload
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-    setUploading(true);
-    const fileExt = file.name.split('.').pop();
-    const filePath = `public/${user.id}/avatar.${fileExt}`;
-    // 1. Upload to Supabase Storage
-    const { error } = await supabase.storage
-      .from('avatars')
-      .upload(filePath, file, { upsert: true });
-    if (error) {
-      setMessage({ type: 'error', text: 'Upload failed: ' + error.message });
-      setUploading(false);
-      return;
-    }
-    // 2. Get public URL
-    const { data: urlData } = supabase.storage
-      .from('avatars')
-      .getPublicUrl(filePath);
-    const publicUrl = urlData?.publicUrl;
-    if (!publicUrl) {
-      setMessage({ type: 'error', text: 'Could not get public URL!' });
-      setUploading(false);
-      return;
-    }
-    // 3. Update user profile
-    const { error: updateError } = await supabase.auth.updateUser({
-      data: { ...user.user_metadata, avatar_url: publicUrl }
+  async function handleEmojiChange(newEmoji: string) {
+    if (!user) return;
+    const { error } = await supabase.auth.updateUser({
+      data: { ...user.user_metadata, emoji: newEmoji }
     });
-    setUploading(false);
-    if (updateError) {
-      setMessage({ type: 'error', text: 'Profile update failed: ' + updateError.message });
-    } else {
-      setMessage({ type: 'success', text: 'Profile photo updated!' });
-      // Refetch user to update UI
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user);
+    if (!error) {
+      setUser({ ...user, user_metadata: { ...user.user_metadata, emoji: newEmoji } });
     }
-  };
+  }
+
+  async function handleGenderChange(newGender: string) {
+    if (!user) return;
+    const { error } = await supabase.auth.updateUser({
+      data: { ...user.user_metadata, gender: newGender }
+    });
+    if (!error) {
+      setGender(newGender);
+      setUser({ ...user, user_metadata: { ...user.user_metadata, gender: newGender } });
+      setShowGenderOptions(false);
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start pt-16 bg-gradient-to-br from-indigo-100 via-blue-100 to-purple-100">
@@ -130,28 +114,48 @@ export default function ProfilePage() {
         <div className="flex flex-col items-center">
           <div className="relative mb-4">
             <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-28 h-2 bg-indigo-200 blur-2xl opacity-60 rounded-full z-0"></span>
-            <Image
-              src={avatarUrl}
-              alt={displayName + " avatar"}
-              width={96}
-              height={96}
-              className="w-24 h-24 rounded-full border-4 border-[#dce7f3] object-cover shadow-lg relative z-10"
-              priority
-              unoptimized // For external URLs
-            />
-            <label htmlFor="avatar-upload" className="mt-2 px-4 py-1 rounded bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-sm font-semibold shadow cursor-pointer">
-              {uploading ? 'Uploading...' : 'Change Photo'}
-              <input
-                id="avatar-upload"
-                type="file"
-                accept="image/*"
-                ref={fileInputRef}
-                className="sr-only"
-                onChange={handleAvatarChange}
-                aria-label="Upload profile photo"
-                title="Upload profile photo"
-              />
-            </label>
+            <span className="text-6xl select-none" role="img" aria-label="Profile Emoji">{userEmoji}</span>
+            <div className="flex gap-2 mt-4 justify-center">
+              {emojiOptions.map(e => (
+                <button
+                  key={e}
+                  className={`text-2xl md:text-3xl transition-all duration-200 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-400 hover:scale-110 ${userEmoji === e ? 'ring-2 ring-indigo-500 bg-indigo-100' : 'bg-white'}`}
+                  onClick={() => handleEmojiChange(e)}
+                  aria-label={`Choose ${e} as profile emoji`}
+                  type="button"
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Gender selection button and options */}
+          <div className="mt-6 flex flex-col items-center w-full">
+            <button
+              className="px-4 py-2 rounded-lg bg-gradient-to-r from-pink-200 to-blue-200 hover:from-pink-300 hover:to-blue-300 text-[#101418] font-semibold shadow transition-all duration-300 mb-2"
+              type="button"
+              onClick={() => setShowGenderOptions(v => !v)}
+            >
+              {gender ? `Gender: ${gender.charAt(0).toUpperCase() + gender.slice(1)}` : 'Select Gender'}
+            </button>
+            {showGenderOptions && (
+              <div className="flex gap-4 mt-2">
+                <button
+                  className={`px-4 py-2 rounded-lg font-semibold shadow transition-all duration-200 ${gender === 'male' ? 'bg-blue-400 text-white' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'}`}
+                  type="button"
+                  onClick={() => handleGenderChange('male')}
+                >
+                  Male
+                </button>
+                <button
+                  className={`px-4 py-2 rounded-lg font-semibold shadow transition-all duration-200 ${gender === 'female' ? 'bg-pink-400 text-white' : 'bg-pink-100 text-pink-800 hover:bg-pink-200'}`}
+                  type="button"
+                  onClick={() => handleGenderChange('female')}
+                >
+                  Female
+                </button>
+              </div>
+            )}
           </div>
           {editing ? (
             <form onSubmit={handleSaveName} className="flex flex-col items-center w-full animate-fade-in-up animate-delay-100">

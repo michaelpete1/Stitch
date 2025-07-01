@@ -36,6 +36,7 @@ export default function HomeClient() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [lectureNoteTexts, setLectureNoteTexts] = useState<{ [fileName: string]: string }>({});
 
   const fetchCourses = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -93,11 +94,13 @@ export default function HomeClient() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       setLectureNotes([]);
+      setLectureNoteTexts({});
       return;
     }
     const { data, error } = await supabase.storage.from('lecture-notes').list(`${user.id}/${courseId}/`);
     if (error) {
       setLectureNotes([]);
+      setLectureNoteTexts({});
       return;
     }
     const notes = (data as FileObject[] || []).map((file) => ({
@@ -106,6 +109,17 @@ export default function HomeClient() {
       url: supabase.storage.from('lecture-notes').getPublicUrl(`${user.id}/${courseId}/${file.name}`).data.publicUrl
     }));
     setLectureNotes(notes);
+    // Fetch extracted texts from Supabase
+    const { data: texts } = await supabase
+      .from('lecture_note_texts')
+      .select('file_name, text')
+      .eq('user_id', user.id)
+      .eq('course_id', courseId);
+    const textMap = (texts || []).reduce((acc, cur) => {
+      acc[cur.file_name] = cur.text;
+      return acc;
+    }, {} as { [fileName: string]: string });
+    setLectureNoteTexts(textMap);
   }, []);
 
   useEffect(() => {
@@ -130,6 +144,30 @@ export default function HomeClient() {
     const filePath = `${user.id}/${activeCourseId}/${file.name}`;
     const { error } = await supabase.storage.from('lecture-notes').upload(filePath, file, { upsert: true });
     if (!error) {
+      // Extract text via API
+      const formData = new FormData();
+      formData.append('file', file);
+      let extractedText = '';
+      try {
+        const res = await fetch('/api/extract-text', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        extractedText = data.text || '';
+      } catch {
+        extractedText = '';
+      }
+      setLectureNoteTexts(prev => ({ ...prev, [file.name]: extractedText }));
+      // Save extracted text to Supabase
+      await supabase.from('lecture_note_texts').upsert([
+        {
+          user_id: user.id,
+          course_id: activeCourseId,
+          file_name: file.name,
+          text: extractedText,
+        }
+      ], { onConflict: ['user_id', 'course_id', 'file_name'] });
       fetchLectureNotes(activeCourseId);
       fileInputRef.current.value = '';
     } else {
@@ -273,7 +311,10 @@ export default function HomeClient() {
 
             {/* LLM Chat Section */}
             <div className="mt-8">
-              <LLMChat context={lectureNotes.map(note => `${note.name}: ${note.url}`).join("\n")} />
+              <LLMChat context={
+                Object.values(lectureNoteTexts).filter(Boolean).join("\n\n") ||
+                lectureNotes.map(note => `${note.name}: ${note.url}`).join("\n")
+              } />
             </div>
           </section>
         )}
