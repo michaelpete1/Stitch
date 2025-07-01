@@ -8,6 +8,7 @@ import { supabase } from "../lib/supabaseClient";
 import { FileObject } from '@supabase/storage-js';
 import LLMChat from "./LLMChat";
 import toast, { Toaster } from 'react-hot-toast';
+import { deleteCourse, deleteLectureNote } from "../utils/courseApi";
 
 interface Course {
   id: number;
