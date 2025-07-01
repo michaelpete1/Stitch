@@ -167,8 +167,10 @@ export default function HomeClient() {
           file_name: file.name,
           text: extractedText,
         }
-      ], { onConflict: ['user_id', 'course_id', 'file_name'] });
-      fetchLectureNotes(activeCourseId);
+      ], { onConflict: 'user_id,course_id,file_name' });
+      if (typeof activeCourseId === 'number') {
+        fetchLectureNotes(activeCourseId);
+      }
       fileInputRef.current.value = '';
     } else {
       alert('Upload failed: ' + error.message);
