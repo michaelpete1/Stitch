@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
@@ -12,8 +11,6 @@ export default function ProfilePage() {
   const [nameInput, setNameInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showGenderOptions, setShowGenderOptions] = useState(false);
   const [gender, setGender] = useState<string | null>(null);
 

@@ -72,11 +72,6 @@ export default function Navbar() {
     user?.email?.split('@')[0] ||
     'User';
 
-  const avatarUrl =
-    user?.user_metadata?.avatar_url ||
-    user?.user_metadata?.picture ||
-    'https://randomuser.me/api/portraits/lego/1.jpg';
-
   const userEmoji = user?.user_metadata?.emoji || '👤';
 
   return (
