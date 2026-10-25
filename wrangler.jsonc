@@ -1,0 +1,36 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "stitchai",
+	"main": ".open-next/worker.js",
+	"compatibility_date": "2026-10-25",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "stitchai-db",
+			"database_id": "72f8afcb-ee03-455a-8d14-cb280fc63ba0",
+			"migrations_dir": "migrations"
+		},
+		{
+			"binding": "stitchai_db",
+			"database_name": "stitchai-db",
+			"database_id": "d72710a7-ff32-4940-93db-c558619f1313",
+			"remote": true
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "UPLOADS",
+			"bucket_name": "stitchai-uploads"
+		}
+	],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	"observability": {
+		"enabled": true
+	}
+}
