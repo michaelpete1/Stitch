@@ -12,7 +12,7 @@ export default function ConsentRevokeButton() {
     try {
       const response = await fetch('/api/consent', { method: 'DELETE', credentials: 'include' });
       const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
-      if (!response.ok) throw new Error(payload.error || 'Could not revoke consent.');
+      if (!response.ok) throw new Error(typeof payload.error === 'string' ? payload.error : 'Could not revoke consent.');
       window.location.assign('/');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not revoke consent.');

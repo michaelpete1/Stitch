@@ -18,7 +18,7 @@ export async function d1First<T>(sql: string, params: D1Value[] = []): Promise<T
 
 export async function d1Run(sql: string, params: D1Value[] = []) {
   const result = await database().prepare(sql).bind(...params).run();
-  return { changes: result.changes, success: result.success, meta: result.meta };
+  return { changes: result.meta.changes, success: result.success, meta: result.meta };
 }
 
 export async function d1Batch(queries: { sql: string; params?: D1Value[] }[]) {

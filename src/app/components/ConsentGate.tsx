@@ -21,8 +21,8 @@ export default function ConsentGate({ children }: { children: React.ReactNode })
     fetch('/api/consent', { credentials: 'include', cache: 'no-store' })
       .then(async (response) => {
         const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
-        if (!response.ok) throw new Error(payload.error || 'Could not check consent status.');
-        if (active) setStatus(payload.accepted ? 'accepted' : 'required');
+        if (!response.ok) throw new Error(typeof payload.error === 'string' ? payload.error : 'Could not check consent status.');
+        if (active) setStatus(payload.accepted === true ? 'accepted' : 'required');
       })
       .catch((cause: unknown) => {
         if (!active) return;
@@ -51,7 +51,7 @@ export default function ConsentGate({ children }: { children: React.ReactNode })
         }),
       });
       const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
-      if (!response.ok) throw new Error(payload.error || 'Could not save consent.');
+      if (!response.ok) throw new Error(typeof payload.error === 'string' ? payload.error : 'Could not save consent.');
       setStatus('accepted');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save consent.');
