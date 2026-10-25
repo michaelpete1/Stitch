@@ -1,6 +1,6 @@
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { NextRequest, NextResponse } from 'next/server';
-import { existsSync, unlinkSync } from 'fs';
-import db from '@/lib/database';
+import { d1Batch, d1First } from '@/lib/d1';
 import { verifyToken, getTokenFromHeader } from '@/lib/auth';
 import { sameOriginError } from '@/lib/chat-consent';
 
@@ -17,23 +17,19 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const noteId = parseInt(id, 10);
+  if (!/^\d+$/.test(id)) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+  const noteId = Number(id);
+  const note = await d1First<{ object_key: string; course_id: number; file_name: string }>(
+    'SELECT object_key, course_id, file_name FROM lecture_notes WHERE id = ? AND user_id = ?',
+    [noteId, user.userId],
+  );
+  if (!note) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
 
-  const note = db.prepare(
-    'SELECT file_path, file_name, course_id FROM lecture_notes WHERE id = ? AND user_id = ?'
-  ).get(noteId, user.userId) as { file_path: string; file_name: string; course_id: number } | undefined;
-
-  if (!note) {
-    return NextResponse.json({ error: 'Note not found' }, { status: 404 });
-  }
-
-  if (existsSync(note.file_path)) {
-    unlinkSync(note.file_path);
-  }
-
-  db.prepare('DELETE FROM lecture_notes WHERE id = ? AND user_id = ?').run(noteId, user.userId);
-  db.prepare('DELETE FROM lecture_note_texts WHERE user_id = ? AND course_id = ? AND file_name = ?')
-    .run(user.userId, note.course_id, note.file_name);
-
+  const { env } = getCloudflareContext();
+  await env.UPLOADS.delete(note.object_key);
+  await d1Batch([
+    { sql: 'DELETE FROM lecture_notes WHERE id = ? AND user_id = ?', params: [noteId, user.userId] },
+    { sql: 'DELETE FROM lecture_note_texts WHERE user_id = ? AND course_id = ? AND file_name = ?', params: [user.userId, note.course_id, note.file_name] },
+  ]);
   return NextResponse.json({ success: true });
 }

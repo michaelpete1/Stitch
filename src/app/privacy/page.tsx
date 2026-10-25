@@ -23,7 +23,7 @@ export default function PrivacyPage() {
 
         <h2>How information is used and stored</h2>
         <p>Prompts and any included document text are sent to the selected AI service to produce a response. The app may fall back between Google Gemini and Cloudflare Workers AI when the selected provider is unavailable. Image prompts may be sent to those providers for image generation.</p>
-        <p>Chat history and attached-document text are stored in Cloudflare D1. Consent is stored in a signed, HTTP-only browser cookie for up to one year; it is not stored as a separate D1 record. Account/course data and course uploads use the application server’s SQLite database and file storage. The chat-session cookie is HTTP-only and can last for up to one year. The application has no automatic chat or account-data retention schedule; use the in-app chat and course deletion controls where available. There is currently no self-service account deletion control.</p>
+        <p>Chat history, account/course data, and extracted document text are stored in Cloudflare D1. Uploaded course files are stored in Cloudflare R2. Consent is stored in a signed, HTTP-only browser cookie for up to one year; it is not stored as a separate D1 record. The chat-session cookie is HTTP-only and can last for up to one year. The application has no automatic chat or account-data retention schedule; use the in-app chat and course deletion controls where available. There is currently no self-service account deletion control.</p>
         <p>Rate-limit records contain hashed session and IP identifiers with expiry timestamps. They are used to limit abusive request volume, not to identify you by name.</p>
 
         <h2>AI service providers</h2>

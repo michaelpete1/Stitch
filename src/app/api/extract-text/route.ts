@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mammoth from 'mammoth';
 import pdfParse from 'pdf-parse';
-import db from '@/lib/database';
+import { d1First, d1Run } from '@/lib/d1';
 import { verifyToken, getTokenFromHeader } from '@/lib/auth';
 import { getChatSession } from '@/lib/anonymous-chat';
 import { requireChatConsent, sameOriginError } from '@/lib/chat-consent';
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     if (!courseId || !/^\d+$/.test(courseId)) {
       return NextResponse.json({ error: 'A valid courseId is required' }, { status: 400 });
     }
-    const course = db.prepare('SELECT id FROM courses WHERE id = ? AND user_id = ?').get(courseId, user.userId);
+    const course = await d1First<{ id: number }>('SELECT id FROM courses WHERE id = ? AND user_id = ?', [Number(courseId), user.userId]);
     if (!course) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
@@ -69,9 +69,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (courseId) {
-      db.prepare(
-        'INSERT OR REPLACE INTO lecture_note_texts (user_id, course_id, file_name, text) VALUES (?, ?, ?, ?)'
-      ).run(user.userId, courseId, file.name, text);
+      await d1Run(
+        'INSERT INTO lecture_note_texts (user_id, course_id, file_name, text) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, course_id, file_name) DO UPDATE SET text = excluded.text',
+        [user.userId, Number(courseId), file.name, text],
+      );
     }
 
     return NextResponse.json({ text });

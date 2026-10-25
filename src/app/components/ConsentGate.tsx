@@ -20,7 +20,7 @@ export default function ConsentGate({ children }: { children: React.ReactNode })
     let active = true;
     fetch('/api/consent', { credentials: 'include', cache: 'no-store' })
       .then(async (response) => {
-        const payload = await response.json().catch(() => ({}));
+        const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
         if (!response.ok) throw new Error(payload.error || 'Could not check consent status.');
         if (active) setStatus(payload.accepted ? 'accepted' : 'required');
       })
@@ -50,7 +50,7 @@ export default function ConsentGate({ children }: { children: React.ReactNode })
           privacyVersion: PRIVACY_VERSION,
         }),
       });
-      const payload = await response.json().catch(() => ({}));
+      const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
       if (!response.ok) throw new Error(payload.error || 'Could not save consent.');
       setStatus('accepted');
     } catch (cause) {

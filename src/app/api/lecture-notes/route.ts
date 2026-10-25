@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/database';
+import { d1Query } from '@/lib/d1';
 import { verifyToken, getTokenFromHeader } from '@/lib/auth';
 
 async function getUser(req: NextRequest) {
@@ -18,10 +18,14 @@ export async function GET(req: NextRequest) {
   if (!courseId) {
     return NextResponse.json({ error: 'courseId is required' }, { status: 400 });
   }
+  if (!/^\d+$/.test(courseId)) {
+    return NextResponse.json({ error: 'Invalid courseId' }, { status: 400 });
+  }
 
-  const notes = db.prepare(
-    'SELECT id, file_name, created_at, \'/api/lecture-notes/\' || id || \'/file\' AS url FROM lecture_notes WHERE user_id = ? AND course_id = ? ORDER BY created_at DESC'
-  ).all(user.userId, courseId);
+  const notes = await d1Query(
+    'SELECT id, file_name, created_at, \'/api/lecture-notes/\' || id || \'/file\' AS url FROM lecture_notes WHERE user_id = ? AND course_id = ? ORDER BY created_at DESC',
+    [user.userId, Number(courseId)],
+  );
 
   return NextResponse.json({ notes });
 }

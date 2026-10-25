@@ -68,10 +68,17 @@ export async function generateImageGemini(prompt: string, signal?: AbortSignal) 
     },
   );
   if (!res.ok) throw new Error(`Gemini image generation failed: ${res.status}`);
-  const data = await res.json();
-  const part = data?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData?.mimeType?.startsWith('image/'));
-  if (!part?.inlineData?.data) throw new Error('No image returned from Gemini');
-  return { data: part.inlineData.data, mimeType: part.inlineData.mimeType || 'image/png', provider: 'gemini' as const };
+  const data = await res.json() as Record<string, unknown>;
+  const candidates = data.candidates as Array<Record<string, unknown>> | undefined;
+  const content = candidates?.[0]?.content as Record<string, unknown> | undefined;
+  const parts = content?.parts as Array<Record<string, unknown>> | undefined;
+  const imagePart = parts?.find((p: Record<string, unknown>) => {
+    const inline = p.inlineData as Record<string, unknown> | undefined;
+    return !!inline?.mimeType?.toString().startsWith('image/');
+  });
+  const inlineData = imagePart?.inlineData as Record<string, unknown> | undefined;
+  if (!inlineData?.data) throw new Error('No image returned from Gemini');
+  return { data: inlineData.data as string, mimeType: (inlineData.mimeType as string) || 'image/png', provider: 'gemini' as const };
 }
 
 export async function generateImageWorkersAI(prompt: string, signal?: AbortSignal) {
@@ -88,14 +95,15 @@ export async function generateImageWorkersAI(prompt: string, signal?: AbortSigna
     },
   );
   if (!res.ok) throw new Error(`Workers AI image generation failed: ${res.status}`);
-  const data = await res.json();
-  if (data?.result?.image) {
-    return { data: data.result.image, mimeType: 'image/jpeg', provider: 'workers' as const };
+  const data = await res.json() as Record<string, unknown>;
+  const result = data.result as Record<string, unknown> | undefined;
+  if (result?.image) {
+    return { data: result.image as string, mimeType: 'image/jpeg', provider: 'workers' as const };
   }
-  if (Array.isArray(data?.result?.images) && data.result.images[0]) {
-    const img = data.result.images[0];
+  if (Array.isArray(result?.images) && result.images[0]) {
+    const img = result.images[0];
     if (typeof img === 'string') return { data: img, mimeType: 'image/jpeg', provider: 'workers' as const };
-    if (img?.b64_json) return { data: img.b64_json, mimeType: 'image/jpeg', provider: 'workers' as const };
+    if (img?.b64_json) return { data: img.b64_json as string, mimeType: 'image/jpeg', provider: 'workers' as const };
   }
   throw new Error('No image returned from Workers AI');
 }

@@ -1,42 +1,29 @@
-/** Small server-only client for Cloudflare D1's HTTPS query API.
- * This keeps the existing Next.js hosting/runtime; only the D1 credentials are needed.
- */
+import { getCloudflareContext } from '@opennextjs/cloudflare';
+
 export type D1Value = string | number | null;
 
-type D1Response<T> = {
-  success: boolean;
-  errors?: { message?: string }[];
-  result?: { success?: boolean; results?: T[]; meta?: { changes?: number; last_row_id?: number } }[];
-};
+/** Use the Worker binding so Next dev, Wrangler preview, and production share one API. */
+function database() {
+  return getCloudflareContext().env.DB;
+}
 
 export async function d1Query<T>(sql: string, params: D1Value[] = []): Promise<T[]> {
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const databaseId = process.env.CLOUDFLARE_D1_DATABASE_ID;
-  const token = process.env.CLOUDFLARE_D1_DATABASE_TOKEN || process.env.CLOUDFLARE_API_TOKEN;
-  if (!accountId || !databaseId || !token) {
-    throw new Error('Cloudflare D1 is not configured. Set CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID, and CLOUDFLARE_D1_DATABASE_TOKEN.');
-  }
+  const result = await database().prepare(sql).bind(...params).all<T>();
+  return result.results;
+}
 
-  const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/d1/database/${encodeURIComponent(databaseId)}/query`,
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sql, params }),
-      cache: 'no-store',
-      signal: AbortSignal.timeout(15_000),
-    },
-  );
-  const payload = await response.json() as D1Response<T>;
-  if (!response.ok || !payload.success || payload.result?.some((result) => result.success === false)) {
-    const reason = payload.errors?.map((error) => error.message).filter(Boolean).join('; ');
-    throw new Error(reason || `Cloudflare D1 query failed (${response.status})`);
-  }
-  return payload.result?.[0]?.results ?? [];
+export async function d1First<T>(sql: string, params: D1Value[] = []): Promise<T | null> {
+  return database().prepare(sql).bind(...params).first<T>();
 }
 
 export async function d1Run(sql: string, params: D1Value[] = []) {
-  return d1Query<{ changes?: number; last_row_id?: number }>(sql, params);
+  const result = await database().prepare(sql).bind(...params).run();
+  return { changes: result.changes, success: result.success, meta: result.meta };
+}
+
+export async function d1Batch(queries: { sql: string; params?: D1Value[] }[]) {
+  const db = database();
+  return db.batch(queries.map(({ sql, params = [] }) => db.prepare(sql).bind(...params)));
 }
 
 export function isChatId(value: string) {

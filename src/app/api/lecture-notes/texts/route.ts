@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/database';
+import { d1Query } from '@/lib/d1';
 import { verifyToken, getTokenFromHeader } from '@/lib/auth';
 
 async function getUser(req: NextRequest) {
@@ -18,10 +18,14 @@ export async function GET(req: NextRequest) {
   if (!courseId) {
     return NextResponse.json({ error: 'courseId is required' }, { status: 400 });
   }
+  if (!/^\d+$/.test(courseId)) {
+    return NextResponse.json({ error: 'Invalid courseId' }, { status: 400 });
+  }
 
-  const texts = db.prepare(
-    'SELECT file_name, text FROM lecture_note_texts WHERE user_id = ? AND course_id = ?'
-  ).all(user.userId, courseId) as { file_name: string; text: string }[];
+  const texts = await d1Query<{ file_name: string; text: string }>(
+    'SELECT file_name, text FROM lecture_note_texts WHERE user_id = ? AND course_id = ?',
+    [user.userId, Number(courseId)],
+  );
 
   const textMap: Record<string, string> = {};
   for (const t of texts) {

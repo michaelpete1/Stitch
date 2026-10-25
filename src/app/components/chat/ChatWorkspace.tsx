@@ -22,7 +22,7 @@ type Theme = 'light' | 'dark';
 
 async function readError(response: Response) {
   try {
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
     return typeof data.error === 'string' ? data.error : 'Something went wrong.';
   } catch {
     return 'Something went wrong.';

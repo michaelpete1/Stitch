@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/database';
+import { d1First } from '@/lib/d1';
 import { verifyPassword, createToken } from '@/lib/auth';
 import { consumeChatRateLimit, getChatSession, rateLimitResponse, sessionJson } from '@/lib/anonymous-chat';
 import { requireChatConsent, sameOriginError } from '@/lib/chat-consent';
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     return sessionJson(session, { error: 'Sign in is temporarily unavailable. Please try again shortly.' }, { status: 503 });
   }
   try {
-    const payload = await req.json();
+    const payload = await req.json() as Record<string, unknown>;
     const email = typeof payload?.email === 'string' ? payload.email.trim().toLowerCase() : '';
     const password = typeof payload?.password === 'string' ? payload.password : '';
 
@@ -27,9 +27,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    const user = db.prepare('SELECT id, email, password_hash, first_name, last_name FROM users WHERE email = ?').get(email) as
-      | { id: number; email: string; password_hash: string; first_name: string; last_name: string }
-      | undefined;
+    const user = await d1First<{ id: number; email: string; password_hash: string; first_name: string; last_name: string }>(
+      'SELECT id, email, password_hash, first_name, last_name FROM users WHERE email = ?', [email],
+    );
 
     if (!user) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });

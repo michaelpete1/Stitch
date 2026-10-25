@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   let userMessage: unknown;
   try {
-    const payload = await req.json();
+    const payload = await req.json() as Record<string, unknown>;
     userMessage = payload?.userMessage;
   } catch {
     return NextResponse.json({ error: 'A message is required' }, { status: 400 });
@@ -67,9 +67,14 @@ export async function POST(req: NextRequest) {
       return sessionJson(session, { error: 'The assistant could not respond right now' }, { status: 502 });
     }
 
-    const data = await response.json();
-    const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    return sessionJson(session, { aiText: typeof aiText === 'string' ? aiText : 'No response' });
+    const data = await response.json() as Record<string, unknown>;
+    const aiText = data?.candidates as Array<Record<string, unknown>> | undefined;
+    const firstCandidate = aiText?.[0];
+    const content = firstCandidate?.content as Record<string, unknown> | undefined;
+    const parts = content?.parts as Array<Record<string, unknown>> | undefined;
+    const firstPart = parts?.[0];
+    const aiTextValue = firstPart?.text;
+    return sessionJson(session, { aiText: typeof aiTextValue === 'string' ? aiTextValue : 'No response' });
   } catch (error) {
     console.error('Gemini request failed:', error instanceof Error ? error.name : 'unknown error');
     return sessionJson(session, { error: 'The assistant could not respond right now' }, { status: 502 });

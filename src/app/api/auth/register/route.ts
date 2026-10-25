@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/database';
+import { d1First } from '@/lib/d1';
 import { hashPassword, createToken } from '@/lib/auth';
 import { consumeChatRateLimit, getChatSession, rateLimitResponse, sessionJson } from '@/lib/anonymous-chat';
 import { requireChatConsent, sameOriginError } from '@/lib/chat-consent';
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     return sessionJson(session, { error: 'Registration is temporarily unavailable. Please try again shortly.' }, { status: 503 });
   }
   try {
-    const payload = await req.json();
+    const payload = await req.json() as Record<string, unknown>;
     const email = typeof payload?.email === 'string' ? payload.email.trim().toLowerCase() : '';
     const password = typeof payload?.password === 'string' ? payload.password : '';
     const firstName = typeof payload?.firstName === 'string' ? payload.firstName.trim().slice(0, 100) : '';
@@ -32,17 +32,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Password must be between 12 and 128 characters.' }, { status: 400 });
     }
 
-    const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    const existingUser = await d1First<{ id: number }>('SELECT id FROM users WHERE email = ?', [email]);
     if (existingUser) {
       return NextResponse.json({ error: 'Email already registered' }, { status: 409 });
     }
 
     const passwordHash = await hashPassword(password);
-    const result = db.prepare(
-      'INSERT INTO users (email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?)'
-    ).run(email, passwordHash, firstName || '', lastName || '');
+    const result = await d1First<{ id: number }>(
+      'INSERT INTO users (email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?) RETURNING id',
+      [email, passwordHash, firstName || '', lastName || ''],
+    );
 
-    const userId = result.lastInsertRowid as number;
+    if (!result) throw new Error('Registration did not return a user ID');
+    const userId = result.id;
     const token = await createToken({ userId, email });
 
     const response = NextResponse.json({ user: { id: userId, email, firstName, lastName } });

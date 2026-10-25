@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/database';
+import { d1First } from '@/lib/d1';
 import { verifyToken, getTokenFromHeader } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
@@ -14,9 +14,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ user: null }, { status: 401 });
   }
 
-  const user = db.prepare('SELECT id, email, first_name, last_name FROM users WHERE id = ?').get(payload.userId) as
-    | { id: number; email: string; first_name: string; last_name: string }
-    | undefined;
+  const user = await d1First<{ id: number; email: string; first_name: string; last_name: string }>(
+    'SELECT id, email, first_name, last_name FROM users WHERE id = ?', [payload.userId],
+  );
 
   if (!user) {
     return NextResponse.json({ user: null }, { status: 401 });

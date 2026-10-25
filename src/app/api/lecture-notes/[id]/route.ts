@@ -1,6 +1,6 @@
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { NextRequest, NextResponse } from 'next/server';
-import { existsSync, readFileSync } from 'fs';
-import db from '@/lib/database';
+import { d1First } from '@/lib/d1';
 import { verifyToken, getTokenFromHeader } from '@/lib/auth';
 
 async function getUser(req: NextRequest) {
@@ -12,24 +12,27 @@ async function getUser(req: NextRequest) {
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
   const { id } = await params;
-  const noteId = parseInt(id, 10);
+  if (!/^\d+$/.test(id)) return NextResponse.json({ error: 'File not found' }, { status: 404 });
 
-  const note = db.prepare(
-    'SELECT file_path, file_name, mime_type FROM lecture_notes WHERE id = ? AND user_id = ?'
-  ).get(noteId, user.userId) as { file_path: string; file_name: string; mime_type: string } | undefined;
+  const note = await d1First<{ object_key: string; file_name: string; mime_type: string | null }>(
+    'SELECT object_key, file_name, mime_type FROM lecture_notes WHERE id = ? AND user_id = ?',
+    [Number(id), user.userId],
+  );
+  if (!note) return NextResponse.json({ error: 'File not found' }, { status: 404 });
 
-  if (!note || !existsSync(note.file_path)) {
-    return NextResponse.json({ error: 'File not found' }, { status: 404 });
-  }
+  const { env } = getCloudflareContext();
+  const object = await env.UPLOADS.get(note.object_key);
+  if (!object) return NextResponse.json({ error: 'File is unavailable' }, { status: 404 });
 
-  const fileBuffer = readFileSync(note.file_path);
-  
-  return new NextResponse(fileBuffer, {
+  const safeName = encodeURIComponent(note.file_name).replace(/[()']/g, (char) => `%${char.charCodeAt(0).toString(16)}`);
+  return new NextResponse(object.body, {
     headers: {
       'Content-Type': note.mime_type || 'application/octet-stream',
-      'Content-Disposition': `inline; filename="${note.file_name}"`,
+      'Content-Length': String(object.size),
+      'Content-Disposition': `attachment; filename*=UTF-8''${safeName}`,
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'private, no-store',
     },
   });
 }
