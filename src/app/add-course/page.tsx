@@ -2,9 +2,11 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../lib/supabaseClient";
+import { api } from "@/lib/api";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function AddCoursePage() {
+  const { user } = useAuth();
   const [form, setForm] = useState({
     name: "",
     code: "",
@@ -19,6 +21,10 @@ export default function AddCoursePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!user) {
+      setError("User not authenticated.");
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -29,67 +35,63 @@ export default function AddCoursePage() {
       return;
     }
     const { name, code, instructor, semester, description } = form;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setError("User not authenticated.");
+    try {
+      await api.courses.create({ name, code, instructor, semester, credits: creditsNumber, description });
+      router.push("/");
+      router.refresh();
+    } catch (err: unknown) {
+      setError("Failed to add course: " + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
       setLoading(false);
-      return;
-    }
-    const { error } = await supabase.from("courses").insert([
-      {
-        name,
-        code,
-        instructor,
-        semester,
-        credits: creditsNumber,
-        description,
-        user_id: user.id,
-      },
-    ]);
-    setLoading(false);
-    if (error) {
-      setError("Failed to add course: " + error.message);
-    } else {
-      router.push("/mycoursepage");
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 flex items-center justify-center py-8 px-2 font-sans">
-      <div className="w-full max-w-lg mx-auto bg-white rounded-2xl shadow-2xl p-8 animate-fade-in-up">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 flex items-center justify-center py-6 px-4 sm:py-8 font-sans">
+      <div className="w-full max-w-lg mx-auto bg-white rounded-2xl shadow-2xl p-5 sm:p-8 animate-fade-in-up">
         <h1 className="text-3xl md:text-4xl font-extrabold text-center text-indigo-700 mb-8 tracking-tight drop-shadow-lg animate-fade-in-down">
           Add New Course
         </h1>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <label htmlFor="course-name" className="sr-only">Course Name</label>
           <input
+            id="course-name"
             className="px-4 py-2 rounded-lg border border-indigo-200 focus:outline-none focus:border-indigo-500 transition placeholder-gray-400"
             placeholder="Course Name"
             value={form.name}
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
             required
           />
+          <label htmlFor="course-code" className="sr-only">Course Code</label>
           <input
+            id="course-code"
             className="px-4 py-2 rounded-lg border border-indigo-200 focus:outline-none focus:border-indigo-500 transition placeholder-gray-400"
             placeholder="Course Code"
             value={form.code}
             onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
             required
           />
+          <label htmlFor="course-instructor" className="sr-only">Instructor</label>
           <input
+            id="course-instructor"
             className="px-4 py-2 rounded-lg border border-indigo-200 focus:outline-none focus:border-indigo-500 transition placeholder-gray-400"
             placeholder="Instructor"
             value={form.instructor}
             onChange={e => setForm(f => ({ ...f, instructor: e.target.value }))}
             required
           />
+          <label htmlFor="course-semester" className="sr-only">Semester</label>
           <input
+            id="course-semester"
             className="px-4 py-2 rounded-lg border border-indigo-200 focus:outline-none focus:border-indigo-500 transition placeholder-gray-400"
             placeholder="Semester"
             value={form.semester}
             onChange={e => setForm(f => ({ ...f, semester: e.target.value }))}
             required
           />
+          <label htmlFor="course-credits" className="sr-only">Credits</label>
           <input
+            id="course-credits"
             className="px-4 py-2 rounded-lg border border-indigo-200 focus:outline-none focus:border-indigo-500 transition placeholder-gray-400"
             placeholder="Credits"
             type="number"
@@ -99,7 +101,9 @@ export default function AddCoursePage() {
             onChange={e => setForm(f => ({ ...f, credits: e.target.value }))}
             required
           />
+          <label htmlFor="course-description" className="sr-only">Description</label>
           <textarea
+            id="course-description"
             className="px-4 py-2 rounded-lg border border-indigo-200 focus:outline-none focus:border-indigo-500 transition placeholder-gray-400 resize-none"
             placeholder="Description"
             value={form.description}
@@ -119,7 +123,7 @@ export default function AddCoursePage() {
             <button
               type="button"
               className="flex-1 px-6 py-2 rounded-lg bg-gray-200 text-gray-700 font-semibold shadow hover:bg-gray-300 transition-transform duration-200 hover:scale-105"
-              onClick={() => router.push("/mycoursepage")}
+              onClick={() => router.push("/")}
             >
               Cancel
             </button>

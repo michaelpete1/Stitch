@@ -1,11 +1,5 @@
-import { Suspense } from 'react';
-import HomeClient from './components/HomeClient';
+import LLMChat from './components/LLMChat';
 
 export default function HomePage() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <HomeClient />
-    </Suspense>
-  );
+  return <LLMChat fullScreen />;
 }
-

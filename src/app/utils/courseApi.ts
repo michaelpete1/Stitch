@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { api } from '@/lib/api';
 
 export type Course = {
   id: number;
@@ -10,44 +10,23 @@ export type Course = {
   description: string;
 };
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY!
-);
-
+// Compatibility exports for older imports; all data access now goes through
+// the authenticated same-origin Next.js API instead of a browser Supabase key.
 export async function fetchCourses(): Promise<Course[]> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('User not authenticated');
-  const { data, error } = await supabase
-    .from('courses')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('name');
-  if (error) throw error;
-  return data || [];
+  return (await api.courses.list()).courses;
 }
 
-export async function createCourse(course: Omit<Course, 'id'>, user_id: string) {
-  if (!user_id) throw new Error('User ID is required');
-  const { error } = await supabase.from('courses').insert([{ ...course, user_id }]);
-  if (error) throw error;
+export async function createCourse(course: Omit<Course, 'id'>, _legacyUserId: string) {
+  await api.courses.create(course);
 }
 
 export async function deleteCourse(courseId: number): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('User not authenticated');
-  const { error } = await supabase
-    .from('courses')
-    .delete()
-    .eq('id', courseId)
-    .eq('user_id', user.id);
-  if (error) throw error;
+  await api.courses.delete(courseId);
 }
 
 export async function deleteLectureNote(courseId: number, fileName: string): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('User not authenticated');
-  const filePath = `${user.id}/${courseId}/${fileName}`;
-  const { error } = await supabase.storage.from('lecture-notes').remove([filePath]);
-  if (error) throw error;
+  const { notes } = await api.lectureNotes.list(courseId);
+  const note = notes.find((item) => item.file_name === fileName);
+  if (!note) throw new Error('Lecture note not found');
+  await api.lectureNotes.delete(note.id);
 }

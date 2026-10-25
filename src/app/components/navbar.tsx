@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-import { useRouter, usePathname } from 'next/navigation';
-import { User } from '@supabase/supabase-js';
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
 import {
   Plus,
   User as UserIcon,
   LogOut,
-  Pencil,
   Menu as MenuIcon,
-  X as CloseIcon
-} from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+  PanelLeftClose,
+  PanelLeftOpen,
+  X as CloseIcon,
+  Compass,
+} from "lucide-react";
 
 interface NavLink {
   href: string;
@@ -23,137 +23,178 @@ interface NavLink {
   onClick?: () => void;
 }
 
-export default function Navbar() {
+interface NavbarProps {
+  onLogout: () => Promise<void>;
+  user: {
+    id: number;
+    email: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+}
+
+export default function Navbar({ onLogout, user }: NavbarProps) {
   const [open, setOpen] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const router = useRouter();
+  const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
-    async function getSession() {
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user);
-    }
-    getSession();
+    if (!open) return;
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
 
-    return () => listener.subscription.unsubscribe();
-  }, []);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
 
   const navLinks: NavLink[] = [
-    { href: '/add-course', label: 'Add Course', icon: <Plus size={20} />, show: !!user },
-    { href: '/profile', label: 'Profile', icon: <UserIcon size={20} />, show: !!user }
+    {
+      href: "/add-course",
+      label: "Add Course",
+      icon: <Plus size={20} />,
+      show: !!user,
+    },
+    {
+      href: "/profile",
+      label: "Profile",
+      icon: <UserIcon size={20} />,
+      show: !!user,
+    },
   ];
 
   const unauthLinks: NavLink[] = [
-    { href: '/signuppage', label: 'Sign Up', icon: <Pencil size={20} />, show: !user }
+    {
+      href: "/#how-it-works",
+      label: "Explore",
+      icon: <Compass size={20} />,
+      show: !user,
+    },
   ];
 
   const authLinks: NavLink[] = [
     {
-      href: '#',
-      label: 'Logout',
+      href: "#",
+      label: "Logout",
       icon: <LogOut size={20} />,
       show: !!user,
       onClick: async () => {
-        await supabase.auth.signOut();
+        await onLogout();
         setOpen(false);
-        router.push('/signuppage');
-      }
-    }
+      },
+    },
   ];
 
-  const displayName =
-    user?.user_metadata?.name ||
-    user?.user_metadata?.full_name ||
-    user?.email?.split('@')[0] ||
-    'User';
+  const displayName = user
+    ? `${user.firstName} ${user.lastName}`.trim() || user.email.split("@")[0]
+    : "User";
 
-  const userEmoji = user?.user_metadata?.emoji || '👤';
+  const userEmoji = "👤";
 
   return (
     <>
-      {/* Mobile menu button */}
       <button
         type="button"
         className="fixed top-4 left-4 z-50 flex items-center justify-center w-10 h-10 md:hidden bg-white rounded-full shadow-md focus:outline-none transition-transform duration-300 hover:scale-110 active:scale-95"
-        onClick={() => setOpen(v => !v)}
-        title={open ? 'Close menu' : 'Open menu'}
-        aria-label={open ? 'Close menu' : 'Open menu'}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls="primary-navigation"
+        title={open ? "Close menu" : "Open menu"}
+        aria-label={open ? "Close menu" : "Open menu"}
       >
-        <span className="sr-only">{open ? 'Close menu' : 'Open menu'}</span>
+        <span className="sr-only">{open ? "Close menu" : "Open menu"}</span>
         {open ? <CloseIcon size={24} /> : <MenuIcon size={24} />}
       </button>
 
-      {/* Backdrop for mobile */}
-      <div
-        className={`fixed inset-0 bg-black/40 z-30 transition-opacity duration-300 md:hidden ${
-          open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+      <button
+        type="button"
+        aria-label="Close navigation menu"
+        tabIndex={open ? 0 : -1}
+        className={`fixed inset-0 border-0 p-0 bg-black/40 z-30 transition-opacity duration-300 md:hidden ${
+          open
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none"
         }`}
         onClick={() => setOpen(false)}
       />
 
-      {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-screen w-56 bg-gradient-to-b from-indigo-100 via-white to-blue-100 border-r flex flex-col py-6 px-4 shadow-xl transition-transform duration-500 ease-in-out md:static md:translate-x-0 md:shadow-xl md:block ${
-          open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        id="primary-navigation"
+        className={`fixed top-0 left-0 z-50 h-[100dvh] w-[min(18rem,88vw)] bg-gradient-to-b from-indigo-100 via-white to-blue-100 border-r flex flex-col py-6 px-4 shadow-xl transition-[transform,width] duration-300 ease-in-out md:sticky md:top-0 md:h-screen md:shrink-0 md:translate-x-0 md:shadow-xl md:block ${collapsed ? "md:w-16" : "md:w-48 lg:w-56"} ${
+          open ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         } rounded-r-2xl md:rounded-none`}
       >
-        {/* Branding section */}
-        <div className="flex items-center gap-3 mb-8 animate-fade-in-down">
-          <Image
-            src="/vercel.svg"
-            alt="App Logo"
-            width={36}
-            height={36}
-            className="rounded-full object-cover border-2 border-indigo-200 shadow"
-          />
-          <span className="text-xl font-bold text-indigo-700 tracking-tight select-none">Stitch</span>
+        <div className={`flex items-center mb-8 animate-fade-in-down ${collapsed ? "md:justify-center" : "gap-3"}`}>
+          <Link href="/" aria-label="Stitch home" className={collapsed ? "md:hidden" : "block"}>
+            <Image src="/stitch-logo.png" alt="Stitch" width={140} height={51} priority className="h-[51px] w-[140px] object-contain" />
+          </Link>
+          <button
+            type="button"
+            className={`hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg text-indigo-700 hover:bg-indigo-100 md:flex ${collapsed ? "md:mx-auto" : "md:ml-auto"}`}
+            onClick={() => setCollapsed((value) => !value)}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}
+          </button>
         </div>
-        <hr className="mb-6 border-indigo-200" />
+        <hr className="mb-6 border-indigo-200 md:hidden" />
         {user && (
-          <div className="flex items-center gap-3 mb-8 animate-fade-in-down">
-            <span className="text-4xl select-none" role="img" aria-label="Profile Emoji">{userEmoji}</span>
+          <div className={`flex items-center mb-8 animate-fade-in-down ${collapsed ? "md:justify-center" : "gap-3"}`}>
+            <span
+              className="text-4xl select-none"
+              role="img"
+              aria-label="Profile Emoji"
+            >
+              {userEmoji}
+            </span>
             <Link
               href="/"
               onClick={() => setOpen(false)}
-              className="text-lg font-medium text-[#101418] hover:underline focus:outline-none transition-colors"
+              className={`min-w-0 truncate text-lg font-medium text-[#101418] hover:underline focus:outline-none transition-colors ${collapsed ? "md:hidden" : ""}`}
             >
               {displayName}
             </Link>
           </div>
         )}
-        <nav className="flex flex-col gap-2 mt-2">
+        <nav className={`flex flex-col gap-2 mt-2 ${collapsed ? "md:items-center" : ""}`}>
           {[...navLinks, ...unauthLinks, ...authLinks]
-            .filter(link => link.show)
-            .map(link => {
-              const isActive = link.href !== '#' && pathname === link.href;
+            .filter((link) => link.show)
+            .map((link) => {
+              const isActive = link.href !== "#" && pathname === link.href;
               return link.onClick ? (
                 <button
                   key={link.label}
                   type="button"
                   onClick={link.onClick}
-                  className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200 font-medium focus:ring-2 focus:ring-indigo-300 shadow-sm
-                    ${isActive ? 'bg-indigo-200 text-indigo-900' : 'hover:bg-indigo-100 text-[#101418]'}
+                  aria-label={collapsed ? link.label : undefined}
+                  title={collapsed ? link.label : undefined}
+                  className={`flex min-h-11 items-center gap-3 rounded-lg px-4 py-2 transition-all duration-200 font-medium focus:ring-2 focus:ring-indigo-300 shadow-sm ${collapsed ? "md:w-11 md:justify-center md:px-0" : "md:w-full"}
+                    ${isActive ? "bg-indigo-200 text-indigo-900" : "hover:bg-indigo-100 text-[#101418]"}
                   `}
                 >
                   {link.icon}
-                  <span>{link.label}</span>
+                  <span className={collapsed ? "md:hidden" : ""}>{link.label}</span>
                 </button>
               ) : (
                 <Link
                   key={link.href}
                   href={link.href}
                   onClick={() => setOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200 font-medium focus:ring-2 focus:ring-indigo-300 shadow-sm
-                    ${isActive ? 'bg-indigo-200 text-indigo-900' : 'hover:bg-indigo-100 text-[#101418]'}
+                  aria-label={collapsed ? link.label : undefined}
+                  title={collapsed ? link.label : undefined}
+                  className={`flex min-h-11 items-center gap-3 rounded-lg px-4 py-2 transition-all duration-200 font-medium focus:ring-2 focus:ring-indigo-300 shadow-sm ${collapsed ? "md:w-11 md:justify-center md:px-0" : "md:w-full"}
+                    ${isActive ? "bg-indigo-200 text-indigo-900" : "hover:bg-indigo-100 text-[#101418]"}
                   `}
                 >
                   {link.icon}
-                  <span>{link.label}</span>
+                  <span className={collapsed ? "md:hidden" : ""}>{link.label}</span>
                 </Link>
               );
             })}

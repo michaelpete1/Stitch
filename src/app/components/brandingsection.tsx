@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 
 const features = [
   "Organize course materials",
@@ -13,9 +14,7 @@ export default function BrandingSection() {
         <div className="max-w-md text-center fadeIn">
           <div className="mb-8">
             <div className="w-16 h-16 bg-[#ffe5db] rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg width={32} height={32} fill="currentColor" viewBox="0 0 256 256">
-                <path d="M240,64V192a16,16,0,0,1-16,16H160a24,24,0,0,0-24,24,8,8,0,0,1-16,0,24,24,0,0,0-24-24H32a16,16,0,0,1-16-16V64A16,16,0,0,1,32,48H88a32,32,0,0,1,32,32v88a8,8,0,0,0,16,0V80a32,32,0,0,1,32-32h56A16,16,0,0,1,240,64Z" />
-              </svg>
+              <Image src="/stitch-mark.png" alt="" width={44} height={44} className="object-contain" />
             </div>
             <h1 className="text-3xl font-bold mb-4">Welcome to Stitch</h1>
             <p className="text-lg opacity-90">

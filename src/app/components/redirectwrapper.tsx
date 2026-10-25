@@ -3,35 +3,39 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { supabase } from "../lib/supabaseClient";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function RedirectWrapper({ children }: { children: React.ReactNode }) {
+  const { user, loading: authLoading, refreshUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        const session = data.session;
-
-        if (error || !session) {
-          router.replace("/signuppage");
-        } else if (session && pathname === "/signuppage") {
-          router.replace("/");
-        }
-      } catch {
-        router.replace("/signuppage");
-      } finally {
-        setLoading(false);
+    const checkAuth = async () => {
+      if (authLoading) return;
+      
+      if (!user) {
+        await refreshUser();
       }
+      
+      const currentUser = user;
+      
+      if (!currentUser) {
+        if (pathname !== '/signuppage') {
+          router.replace('/signuppage');
+        }
+      } else if (currentUser && pathname === '/signuppage') {
+        router.replace('/');
+      }
+      
+      setLoading(false);
     };
 
-    checkSession();
-  }, [pathname, router]);
+    checkAuth();
+  }, [user, authLoading, pathname, router, refreshUser]);
 
-  if (loading) return null; // Or a loading spinner
+  if (loading || authLoading) return null;
 
   return <>{children}</>;
 }
