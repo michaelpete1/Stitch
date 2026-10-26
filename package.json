@@ -55,7 +55,6 @@
     "autoprefixer": "^10.4.21",
     "eslint": "^9.39.5",
     "eslint-config-next": "^15.5.27",
-    "lightningcss": "^1.32.0",
     "next": "^15.5.27",
     "patch-package": "^8.0.0",
     "postcss": "^8.5.6",
@@ -64,5 +63,6 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "wrangler": "^4.152.0"
-  }
+  },
+  "packageManager": "npm@10.9.2"
 }
