@@ -20,6 +20,12 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Install Stitch as an app
+
+The production site includes a web app manifest and service worker. Build and run it with `npm run build` and `npm start`, then open the site over HTTPS (or `localhost`). In Chrome or Edge, use the install icon in the address bar or the browser menu's **Install app** option. On iOS, use Safari's **Share > Add to Home Screen**.
+
+The service worker caches static assets and shows an offline page when the site cannot be reached. It does not cache account pages, chat history, or API responses; those features still require an internet connection.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

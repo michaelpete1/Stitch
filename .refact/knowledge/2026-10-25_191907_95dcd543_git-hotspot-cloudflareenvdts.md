@@ -6,7 +6,7 @@ tags:
 - git
 - hotspot
 created: 2026-10-25
-updated: 2026-10-25
+updated: 2026-10-26
 filenames:
 - cloudflare-env.d.ts
 links: []
@@ -14,7 +14,7 @@ kind: code
 status: proposed
 superseded_by: null
 deprecated_at: null
-review_after: 2026-10-25
+review_after: 2026-10-26
 source_chat_id: null
 created_at: 2026-10-25T18:19:07.033588700+00:00
 summary: null

@@ -1,32 +1,32 @@
 # Stitch chat setup
 
-Chat is anonymous. Chat history and shared rate limits use Cloudflare D1 through Cloudflare's server-side API. Existing Next.js API routes and the current Next.js hosting setup are retained. Course, lecture-note, and account data continue using the existing SQLite/auth flow.
+Chat is anonymous. Chat history and shared rate limits use Cloudflare D1 through the `DB` Worker binding in `wrangler.jsonc`. The server accesses it through `src/lib/d1.ts`.
 
-## Create and configure D1
+## Configure and migrate D1
 
-1. Create a D1 database in the Cloudflare dashboard, or run `npx wrangler@latest d1 create stitch-chat`.
-2. Apply the schema in `migrations/0001_chat.sql` using the database name from step 1: `npx wrangler@latest d1 execute stitch-chat --remote --file=migrations/0001_chat.sql`.
-3. Copy the Cloudflare account ID from the dashboard and the D1 database ID from the database's overview/configuration.
-4. Create a Cloudflare API token scoped to that account with **D1 Read** and **D1 Edit** permissions for chat history. Workers AI can use a separate token with **Workers AI Read** permission.
-5. Add these values to `.env.local` (copy `.env.example` if needed). The app accepts the existing `WORKERSAPI_KEY` variable for Workers AI:
+1. Create a D1 database in the Cloudflare dashboard, or run `npx wrangler d1 create stitch-chat`.
+2. Set the database's ID and name in the `DB` entry in `wrangler.jsonc`; keep `migrations_dir` set to `migrations`.
+3. Apply migrations to the local development database with `npx wrangler d1 migrations apply DB --local`.
+4. Apply migrations to the configured Cloudflare database with `npx wrangler d1 migrations apply DB --remote`.
+5. Check migration status with `npx wrangler d1 migrations list DB --local` or `npx wrangler d1 migrations list DB --remote`.
+
+Local D1 data is separate from the remote Cloudflare database. Local development uses the local database unless the binding is explicitly configured as remote. No D1 API token is required for application queries through the Worker binding.
+
+Add the Cloudflare account ID and Workers AI key to `.env.local` if using Workers AI:
 
    ```env
    CLOUDFLARE_ACCOUNT_ID=your-account-id
-   CLOUDFLARE_D1_DATABASE_ID=your-database-id
-   CLOUDFLARE_D1_DATABASE_TOKEN=your-d1-server-side-token
    WORKERSAPI_KEY=your-workers-ai-token
    GEMINI_API_KEY=your-google-ai-studio-key
    ```
 
-6. Keep the token and Gemini key server-side. Do not add `NEXT_PUBLIC_` or commit `.env.local`. Restart the dev server after changing environment variables.
-
-The app talks to D1 using Cloudflare's documented HTTPS query API, so local development and the current Next.js host do not require a Workers adapter or D1 binding. The token must have D1 Read and Write access. [Cloudflare D1 query API](https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/query/)
+Keep credentials server-side. Do not add `NEXT_PUBLIC_` or commit `.env.local`. Restart the dev server after changing environment variables.
 
 ## Anonymous chat data
 
 The first chat API request issues a random UUID in the HttpOnly `stitch-chat-session` cookie. The cookie is Secure in production, uses SameSite=Lax, and expires after one year. The browser does not need to read or store the ID in localStorage.
 
-The migration creates `stitch_chat_conversations`, `stitch_chat_messages`, and `chat_rate_limits` tables with indexes for session history, message pagination, client-message idempotency, reply idempotency, and rate-limit expiry. The `stitch_chat_` prefix keeps this anonymous chat schema separate from any existing account-based `conversations` and `messages` tables. Existing records are left untouched. New chat IDs are UUIDs.
+The migrations create `stitch_chat_conversations`, `stitch_chat_messages`, and `chat_rate_limits` tables with indexes for session history, message pagination, client-message idempotency, reply idempotency, and rate-limit expiry. The `stitch_chat_` prefix keeps this anonymous chat schema separate from any existing account-based `conversations` and `messages` tables. Existing records are left untouched. New chat IDs are UUIDs.
 
 The sidebar tells visitors that chats are saved on this device and provides “Clear my chats”. Clearing deletes that session's conversations and their messages. Clearing browser cookies also loses the anonymous session link to its saved chats.
 

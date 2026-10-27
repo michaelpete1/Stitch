@@ -20,7 +20,15 @@ export function sameOriginError(request: NextRequest, session?: ChatSession) {
   const origin = request.headers.get('origin');
   let sameOrigin = false;
   try {
-    sameOrigin = Boolean(origin) && new URL(origin!).origin === request.nextUrl.origin;
+    if (origin) {
+      const requestOrigin = new URL(origin).origin;
+      const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+      const host = forwardedHost || request.headers.get('host');
+      const forwardedProtocol = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+      const protocol = forwardedProtocol || request.nextUrl.protocol.slice(0, -1);
+      const forwardedOrigin = host ? new URL(`${protocol}://${host}`).origin : null;
+      sameOrigin = requestOrigin === request.nextUrl.origin || requestOrigin === forwardedOrigin;
+    }
   } catch {
     sameOrigin = false;
   }
